@@ -1,0 +1,16 @@
+# Credentials — only on the server, never in git
+config/*.php
+!config/*.example.php
+
+# Runtime
+storage/logs/*
+!storage/logs/.gitkeep
+.deployed
+
+# Local / OS
+.DS_Store
+.vscode/
+.idea/
+test-*.php
+_diagnose.php
+db_check*.php
