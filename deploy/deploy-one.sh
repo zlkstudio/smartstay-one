@@ -2,7 +2,7 @@
 # SmartStay ONE — deploy script. Copy to ~/deploy-one.sh on the server (chmod +x).
 #
 #   ./deploy-one.sh staging [branch]   → ~/one-staging.smartstay.ro   (default branch: main)
-#   ./deploy-one.sh production         → ~/one.smartstay.ro, only the commit already validated on staging
+#   ./deploy-one.sh production         → ~/one.smartstay.ro (if a staging site exists, only the commit validated there)
 #   ./deploy-one.sh rollback <staging|production>   restore the previous code (configs/storage untouched)
 #   ./deploy-one.sh status
 #
@@ -38,7 +38,8 @@ PROTECTED_CONFIGS=(
 # Required before the first deploy. The rest are optional until their stage.
 REQUIRED_CONFIGS=(config/app.php config/database-one.php)
 
-EXCLUDES=(--exclude=/.git/ --exclude=/deploy/ --exclude=/storage/ --exclude=/.deployed --exclude=.DS_Store)
+EXCLUDES=(--exclude=/.git/ --exclude=/deploy/ --exclude=/storage/ --exclude=/.deployed --exclude=.DS_Store
+          --exclude=/public/.well-known/ --exclude=/cgi-bin/)   # cPanel/AutoSSL files, never ours
 for f in "${PROTECTED_CONFIGS[@]}"; do EXCLUDES+=("--exclude=/$f"); done
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
@@ -127,7 +128,8 @@ cmd_production() {
   local head staged
   head=$(git -C "$SOURCE" rev-parse HEAD)
   staged=$(cat "${TARGET_DIR[staging]}/.deployed" 2>/dev/null || echo "")
-  if [ "$head" != "$staged" ] && [ "${FORCE:-0}" != "1" ]; then
+  # Gate only when a staging site exists. Production-only setup: no gate.
+  if [ -d "${TARGET_DIR[staging]}" ] && [ "$head" != "$staged" ] && [ "${FORCE:-0}" != "1" ]; then
     red "origin/main = ${head:0:7}, dar pe staging e ${staged:0:7}."
     die "Rulează întâi: ./deploy-one.sh staging  (sau FORCE=1 dacă știi ce faci)."
   fi

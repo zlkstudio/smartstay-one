@@ -128,6 +128,11 @@ Reguli implementate:
 
 ## 6. Punere în funcțiune pe server (o singură dată)
 
+> **Decizie 30.09.2026: fără staging — deploy direct pe producție** (`~/one.smartstay.ro`, docroot `/public`).
+> Pașii de mai jos rămân valabili înlocuind `one-staging.smartstay.ro` cu `one.smartstay.ro`.
+> `deploy-one.sh production` verifică staging-ul doar dacă folderul `~/one-staging.smartstay.ro` există.
+> Etapa 1 scrie doar în `smartconcept_one`; bazele celorlalte aplicații sunt doar citite.
+
 ### 6.1 GitHub + SSH
 ```bash
 # Local (Mac): repo nou privat zlkstudio/smartstay-one, apoi în folderul acestui pachet:

@@ -5,6 +5,9 @@ DirectoryIndex index.php
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # AutoSSL / Let's Encrypt validation must reach its files over plain HTTP
+  RewriteRule ^\.well-known/ - [L]
+
   # Force HTTPS
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
