@@ -56,11 +56,13 @@ smartstay-one/                      repo zlkstudio/smartstay-one
 ├── config/                         *.example.php în git; *.php reale DOAR pe server
 ├── storage/logs/                   app.log (în afara docroot, persistent)
 ├── deploy/deploy-one.sh
-└── .htaccess                       plasă de siguranță: „Require all denied"
+
 ```
 
 `config/`, `src/`, `storage/` nu sunt niciodată servite: docroot-ul e `public/`.
-Dacă subdomeniul e setat greșit pe rădăcina repo-ului, `.htaccess` din rădăcină blochează tot.
+Fiecare folder din afara `public/` are propriul `.htaccess` cu „Require all denied".
+⚠️ NU pune `.htaccess` cu „Require all denied" în rădăcina repo-ului: Apache citește și `.htaccess`-urile
+din folderele părinte ale docroot-ului, deci ar bloca tot site-ul cu 403 (incident 01.10.2026).
 
 ---
 
@@ -255,7 +257,7 @@ Ce protejează scriptul:
 |---|---|
 | „Configurare incompletă: lipsește config/app.php" | Config-urile nu sunt create în ținta de deploy (§6.3) |
 | 404 Apache pe orice pagină | Docroot-ul nu e `…/public` sau `mod_rewrite` inactiv |
-| 403 pe tot site-ul | Docroot setat pe rădăcina repo-ului → plasa `.htaccess` blochează. Corectează la `/public` |
+| 403 pe tot site-ul | Există `~/one.smartstay.ro/.htaccess` cu „Require all denied” (blochează și `public/`) → șterge-l |
 | Pagina de instalare apare din nou | localStorage șters/privat; „Continuă în browser" o închide |
 | Deloghează după fiecare deschidere pe iPhone | `cookie_secure` true pe HTTP, sau „Ține-mă minte" debifat |
 | „Pagina a expirat" (419) | Token CSRF vechi (formular deschis înainte de re-login) — reîncarcă |

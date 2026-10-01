@@ -1,3 +1,0 @@
-# Safety net: the document root must be public/. If the subdomain was pointed at the
-# repository root by mistake, nothing here (config/, src/, storage/) is ever served.
-Require all denied
