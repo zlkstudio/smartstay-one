@@ -27,10 +27,23 @@ final class ReservationsController
         'link'     => ['label' => 'Link',     'path' => '/reservations/link'],
     ];
 
+    /** Menajera: doar Astăzi / Mâine, cu cardul redus (vezi MAID_FIELDS). */
+    public const MAID_TABS = ['today', 'tomorrow'];
+
+    /** Singurele câmpuri trimise unei menajere: nume, telefon, apartament, date + ore, nr. oaspeți, nota de housekeeping. */
+    private const MAID_FIELDS = ['id', 'name', 'phone', 'apartment', 'checkInLabel', 'checkInTime',
+        'checkOutLabel', 'checkOutTime', 'guestCount', 'note'];
+
     public static function page(string $tab): never
     {
         $user = Guard::requireAccess('reservations', 'view');
+        $isMaid = Access::isMaid($user);
+        if ($isMaid && !in_array($tab, self::MAID_TABS, true)) {
+            redirect('/reservations');
+        }
         view('pages/reservations/index', [
+            'tabs'      => $isMaid ? array_intersect_key(self::TABS, array_flip(self::MAID_TABS)) : self::TABS,
+            'compact'   => $isMaid,
             'user'      => $user,
             'pageTitle' => 'Rezervări · ' . self::TABS[$tab]['label'],
             'active'    => 'reservations',
@@ -52,6 +65,11 @@ final class ReservationsController
         $date = $day === 'tomorrow' ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
 
         $rows = self::previo(static fn(): array => ReservationFeed::checkins($date));
+        if (Access::isMaid($user)) {
+            $keep = array_flip(self::MAID_FIELDS);
+            $rows = array_map(static fn(array $r): array => array_intersect_key($r, $keep), $rows);
+            json_response(['ok' => true, 'date' => $date, 'reservations' => $rows, 'statuses' => (object) []]);
+        }
         $statuses = (new StatusRepository($user['name']))->getMany(array_column($rows, 'id'));
 
         json_response(['ok' => true, 'date' => $date, 'reservations' => $rows, 'statuses' => $statuses]);
@@ -150,7 +168,7 @@ final class ReservationsController
     /** GET /api/reservations/whatsapp — check-outs today / 7 / 14 days ago + "Trimis" marks. */
     public static function whatsapp(): never
     {
-        Guard::requireAccess('reservations', 'view');
+        self::requireNotMaid();
         if (!Previo::isConfigured()) {
             json_response(['ok' => false, 'error' => 'Lipsește config/previo.php pe server.'], 503);
         }
@@ -188,8 +206,18 @@ final class ReservationsController
     /** GET /api/reservations/recent — Generator link (last 4 days of check-ins). */
     public static function recent(): never
     {
-        Guard::requireAccess('reservations', 'view');
+        self::requireNotMaid();
         json_response(['ok' => true, 'reservations' => self::previo(static fn(): array => ReservationFeed::recent())]);
+    }
+
+    /** WhatsApp review și Generator link: nu pentru menajere. */
+    private static function requireNotMaid(): array
+    {
+        $user = Guard::requireAccess('reservations', 'view');
+        if (Access::isMaid($user)) {
+            Guard::forbidden($user);
+        }
+        return $user;
     }
 
     /** Runs a Previo-backed read; turns integration failures into a readable JSON error. */

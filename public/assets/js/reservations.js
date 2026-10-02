@@ -10,6 +10,7 @@
 
   const TAB = root.dataset.tab;
   const CAN_EDIT = root.dataset.canEdit === '1';
+  const COMPACT = root.dataset.compact === '1'; // Menajeră: card redus, fără filtre / toggle-uri / acțiuni
   const $ = (sel) => root.querySelector(sel);
   const $list = $('[data-list]');
   const $count = $('[data-count]');
@@ -155,7 +156,27 @@
         <span class="switch" aria-hidden="true"></span></button>`;
     }
 
+    // Menajeră: nume, telefon, apartament, check-in/out (dată + oră), >2 oaspeți, nota de housekeeping.
+    function compactCard(r) {
+      return `<article class="card res-card" data-id="${esc(r.id)}">
+        <div class="res-card__head">
+          <div class="grow">
+            <h3 class="res-card__name">${esc(r.name)}</h3>
+            ${r.phone ? `<button type="button" class="res-card__phone" data-action="copy-phone">${icon('phone')}<span>${esc(r.phone)}</span></button>` : ''}
+          </div>
+          <div class="apt-badge"><span>Apt</span><strong>${esc(r.apartment || '—')}</strong></div>
+        </div>
+        <div class="res-card__dates">
+          <div><span class="eyebrow">Check-in</span><strong>${esc(r.checkInLabel)}</strong><span class="muted">la ${esc(r.checkInTime)}</span></div>
+          <div><span class="eyebrow">Check-out</span><strong>${esc(r.checkOutLabel)}</strong><span class="muted">la ${esc(r.checkOutTime)}</span></div>
+        </div>
+        ${r.guestCount > 2 ? `<div class="strip strip-warning">${icon('alert')}<span>Atenție: sunt <strong>${r.guestCount}</strong> oaspeți</span></div>` : ''}
+        ${r.note ? `<div class="strip strip-neutral">${icon('note')}<span class="pre">${esc(r.note)}</span></div>` : ''}
+      </article>`;
+    }
+
     function card(r) {
+      if (COMPACT) return compactCard(r);
       const s = st(r.id);
       const nukiLabel = r.hasNuki && r.nukiCode ? `Nuki · ${esc(r.nukiCode)}` : 'Fără Nuki';
       return `<article class="card res-card ${cardClass(s)}" data-id="${esc(r.id)}">
@@ -187,6 +208,7 @@
     }
 
     function renderChips() {
+      if (!$chips) return;
       const c = counts();
       $chips.innerHTML = FILTERS.map(([key, label]) =>
         `<button type="button" class="chip${state.filter === key ? ' is-active' : ''}" data-filter="${key}">${label} <span class="count">${c[key] || 0}</span></button>`).join('');
@@ -298,7 +320,7 @@
       }
     });
 
-    $chips.addEventListener('click', (event) => {
+    $chips && $chips.addEventListener('click', (event) => {
       const chip = event.target.closest('[data-filter]');
       if (!chip) return;
       state.filter = chip.dataset.filter;

@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
 > **Ultima actualizare**: 2 octombrie 2026 (21:45)
-> **Versiune**: 1.3.4 (Menajeră: Acasă cu overview; alocările nu se mai pot anula) · 1.3.3 (Menajeră: + Rezervări citire, Inventar, Rapoarte doar curățeniile ei) · 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
+> **Versiune**: 1.3.5 (Menajeră: Rezervări reduse — doar Astăzi/Mâine, card minimal) · 1.3.4 (Menajeră: Acasă cu overview; alocările nu se mai pot anula) · 1.3.3 (Menajeră: + Rezervări citire, Inventar, Rapoarte doar curățeniile ei) · 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -118,7 +118,11 @@ Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
 - **Menajera** (din 1.3.3/1.3.4): are bara de navigare (Acasă · Rezervări · Curățenie · Inventar · Rapoarte) și aterizează pe
   **Acasă** = overview propriu (`views/pages/home-maid.php`): ale ei azi (făcute / de făcut, „Prioritar" dacă sosește cineva
   în aceeași zi), libere de preluat, check-out-urile de mâine cu sosirile din aceeași zi, curățeniile + totalul săptămânii,
-  lenjerii pe roșu. Fără nume de oaspeți; Previo din `Stays` (cache 5 min). Rezervări = **view** (vede lista, inclusiv numele oaspeților; fără toggle-uri / Nuki / „Trimis").
+  lenjerii pe roșu. Fără nume de oaspeți; Previo din `Stays` (cache 5 min). 
+  Rezervări = **view**, redus din 1.3.5: doar tab-urile Astăzi / Mâine (WhatsApp și Link → redirect, API-urile lor → 403),
+  fără nota „doar vizualizare" și fără filtre. Cardul are doar nume, telefon, apartament, check-in/out (dată + oră), avertizarea
+  „> 2 oaspeți" și nota de housekeeping din Previo; `/api/reservations/list` îi trimite DOAR aceste câmpuri
+  (`ReservationsController::MAID_FIELDS` — fără cod Nuki, link Guest App, parcare sau statusuri).
   Inventar = **edit** (+/−, Necesar, verso). Rapoarte: `/reports` → redirect la `/reports/payments` = „Curățeniile mele",
   filtrat în SQL după `maid_name` din `maid_ref`; fără „Checklist x2", fără „tarif implicit", fără tab-uri, WhatsApp sau
   adăugare/ștergere. `/api/reports/today` → 403.

@@ -2,6 +2,8 @@
 /**
  * Rezervări — one shell for the four tabs. Data is loaded by assets/js/reservations.js.
  * @var array $user @var string $tab @var bool $canEdit
+ * @var array $tabs  tab-urile vizibile (menajera: doar Astăzi / Mâine)
+ * @var bool $compact  card redus pentru menajeră: fără filtre, toggle-uri, acțiuni, notă „doar vizualizare"
  */
 use One\Controllers\ReservationsController;
 
@@ -18,15 +20,15 @@ $sub = [
     'link'     => 'Guest App',
 ];
 $tabIcons = ['whatsapp' => 'whatsapp', 'link' => 'link'];
-$index = array_search($tab, array_keys(ReservationsController::TABS), true);
+$index = array_search($tab, array_keys($tabs), true);
 ?>
-<div class="stack" data-reservations data-tab="<?= h($tab) ?>" data-can-edit="<?= $canEdit ? '1' : '0' ?>">
+<div class="stack" data-reservations data-tab="<?= h($tab) ?>" data-can-edit="<?= $canEdit ? '1' : '0' ?>" data-compact="<?= $compact ? '1' : '0' ?>">
 
   <div class="res-nav">
-    <nav class="daynav" aria-label="Secțiuni Rezervări" style="--i: <?= (int) $index ?>" data-daynav>
+    <nav class="daynav" aria-label="Secțiuni Rezervări" style="--i: <?= (int) $index ?>; --n: <?= count($tabs) ?>" data-daynav>
       <span class="daynav-thumb" aria-hidden="true"></span>
-      <?php foreach (array_keys(ReservationsController::TABS) as $i => $key):
-          $t = ReservationsController::TABS[$key];
+      <?php foreach (array_keys($tabs) as $i => $key):
+          $t = $tabs[$key];
           $on = $key === $tab;
       ?>
         <a href="<?= h($t['path']) ?>" class="daynav-item<?= $on ? ' is-active' : '' ?>" data-i="<?= $i ?>" <?= $on ? 'aria-current="page"' : '' ?>>
@@ -44,7 +46,7 @@ $index = array_search($tab, array_keys(ReservationsController::TABS), true);
     <?php endif; ?>
   </div>
 
-  <?php if (!$canEdit): ?>
+  <?php if (!$canEdit && !$compact): ?>
     <div class="alert alert-info"><?= icon('info', 'icon icon-sm') ?><span>Ai acces doar de vizualizare: toggle-urile, Nuki și marcajele WhatsApp sunt blocate.</span></div>
   <?php endif; ?>
 
@@ -53,7 +55,7 @@ $index = array_search($tab, array_keys(ReservationsController::TABS), true);
       <?= icon('search', 'icon icon-sm') ?>
       <input class="input" type="search" data-search placeholder="Caută nume, telefon sau apartament" autocomplete="off" inputmode="search" aria-label="Caută rezervări">
     </div>
-    <div class="chips" data-chips role="tablist"></div>
+    <?php if (!$compact): ?><div class="chips" data-chips role="tablist"></div><?php endif; ?>
     <div class="alert alert-error" data-error hidden role="alert"></div>
     <div class="res-list" data-list aria-live="polite"></div>
 
