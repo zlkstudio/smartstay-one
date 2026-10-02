@@ -298,8 +298,9 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 - ONE nu mai scrie coloanele Previo în `inventar_apartamente`; le citește live (cache 5 min). Butonul „Sync Previo" din aplicația veche rămâne pentru ea.
 - Trimiterea raportului pe e-mail nu s-a portat (înlocuită de „Copiază rezumatul"). Se poate adăuga dacă e nevoie.
 - **Statusuri Previo** (verificat 02.10.2026 pe 517 rezervări, `php bin/previo-fields.php --status 60`): `1` opțiune (are `optionExpiration`),
-  `2` confirmată, `3` cazat, `9` plecat. Anulările nu sunt întoarse deloc de `searchReservations`. Opțiunile sunt excluse din ocupare, canale și statusul din Inventar
-  (`Previo::isOption`); Rezervări le afișează în continuare. Canalul vine din `partner/name` (Booking.com XML, AirBnB, Szallas GROUP, Expedia; RESERVATION+ și fără partener → „Direct / altele").
+  `2` confirmată, `3` cazat, `9` plecat. Anulările nu sunt întoarse deloc de `searchReservations`. Opțiunile **intră** în ocupare, canale și statusul din Inventar
+  (ca în Previo Overview/Dashboard; schimbat 02.10.2026 după ap. 187 afișat liber cu opțiune în casă). `Stays` le marchează `option=true`,
+  iar Rapoarte listează separat apartamentele ocupate doar cu opțiune. Canalul vine din `partner/name` (Booking.com XML, AirBnB, Szallas GROUP, Expedia; RESERVATION+ și fără partener → „Direct / altele").
 - Veniturile (`reservation/price`, RON) intră în Etapa 4.
 
 ---
