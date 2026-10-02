@@ -186,4 +186,20 @@ final class UserRepository
         }
         return $user;
     }
+
+    /**
+     * WhatsApp phones of active maid accounts, keyed by maid_ref (config('maids') key).
+     * @return array<string, string>
+     */
+    public static function maidPhones(): array
+    {
+        $out = [];
+        $rows = self::db()->query("SELECT maid_ref, phone FROM users WHERE role = 'maid' AND active = 1 AND phone IS NOT NULL AND phone <> ''")->fetchAll();
+        foreach ($rows as $r) {
+            if (!empty($r['maid_ref'])) {
+                $out[(string) $r['maid_ref']] = (string) $r['phone'];
+            }
+        }
+        return $out;
+    }
 }

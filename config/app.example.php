@@ -27,6 +27,10 @@ return [
         'cristina' => 'Cristina',
     ],
 
+    // WhatsApp la Plata menajerelor: numărul vine din contul ONE al menajerei (rol Menajeră).
+    // Doar pentru menajerele fără cont: 'maid_phones' => ['ioana' => '07…'].
+    'maid_phones' => [],
+
     // Guest App links generated in Rezervări (production URL, no trailing slash).
     'guest_app_url' => 'https://smartstay.ro/guest-app',
 

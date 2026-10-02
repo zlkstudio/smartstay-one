@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
 > **Ultima actualizare**: 2 octombrie 2026 (21:45)
-> **Versiune**: 1.3.1 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
+> **Versiune**: 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -290,6 +290,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 
 ### Rapoarte (`/reports`, `/reports/payments`) — Etapa 3
 - **Prezentare**: azi (libere la noapte / ocupate / check-in / check-out + lista libere), ocupare pe nopți (30 în urmă, 14 rezervate înainte), canale pe 30 de zile (donut + rezervări + nopți). Cache `report_cache` (cheia `operations`), recalculat de cron sau de butonul ↻ (doar edit).
+- **Plata menajerelor** (1.3.2): buton „Trimite pe WhatsApp" per menajeră — toate curățeniile (zi, apartament, tarif) + total, format WhatsApp; numărul din contul ei ONE (fallback `maid_phones` în config). Fără „Checklist x2" / „tarif implicit" în mesaj. 33 = studio (50 RON).
 - **Plata menajerelor**: implicit săptămâna trecută (L–D), plus săptămâna/luna curentă/trecută și interval liber (max. 93 zile). Tarif recalculat la fiecare afișare din `src/Housekeeping/Rates.php`; „✓✓ Checklist x2" doar aici; intermediare cu chip violet. Edit: adăugare manuală (menajeră, apartament, dată, tip) și ștergere — ambele în `audit_log`. „Copiază rezumatul" per menajeră (pentru WhatsApp).
 - **Acasă**: cardul „Azi" (din același cache, max. 15 min) + „N apartamente cu lenjerii pe roșu" pentru cine are Inventar.
 

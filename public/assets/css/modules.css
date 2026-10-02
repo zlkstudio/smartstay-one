@@ -473,3 +473,5 @@ button.apt-row:active { background: var(--surface-2); }
   .trend-grid { grid-template-columns: 1fr 1fr; }
   .apt-row, .apt-head { grid-template-columns: 56px minmax(180px, 2fr) 80px 60px 90px 90px minmax(120px, 1fr); }
 }
+
+.btn-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }

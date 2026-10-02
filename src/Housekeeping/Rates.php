@@ -18,7 +18,7 @@ final class Rates
     public const APARTMENT = 60;
     public const FALLBACK = 60;
 
-    public const STUDIOS = ['400', '424', '435', '99', '5', '367', '309', '295'];
+    public const STUDIOS = ['400', '424', '435', '99', '5', '367', '309', '295', '33'];
     public const APARTMENTS = ['594', '187', '40'];
     /** Checked first: these win over the lists above. */
     public const SPECIAL = ['40' => 85];

@@ -10,10 +10,12 @@ use One\Housekeeping\CleaningRepository;
 use One\Http\Guard;
 use One\Inventory\InventoryRepository;
 use One\Reports\MaidPayments;
+use One\Properties;
 use One\Reports\Analytics;
 use One\Reports\OperationsReport;
 use One\Reports\Period;
 use One\Stays;
+use One\Users\UserRepository;
 use RuntimeException;
 use Throwable;
 
@@ -163,6 +165,18 @@ final class ReportsController
             error_log('[ONE] payments report: ' . $e->getMessage());
             $error = 'Baza Housekeeping nu răspunde. Încearcă din nou.';
         }
+        $phones = [];
+        try {
+            $phones = UserRepository::maidPhones();
+        } catch (Throwable $e) {
+            error_log('[ONE] maid phones: ' . $e->getMessage());
+        }
+        // Fallback: config('maid_phones') => ['ioana' => '0784…'] for maids without an ONE account.
+        foreach ((array) config('maid_phones', []) as $key => $phone) {
+            $phones[(string) $key] ??= (string) $phone;
+        }
+        $phones = array_map(static fn(string $p): string => Properties::whatsappPhone($p), $phones);
+
         view('pages/reports/payments', [
             'user'      => $user,
             'pageTitle' => 'Plata menajerelor',
@@ -174,6 +188,7 @@ final class ReportsController
             'data'      => $data,
             'error'     => $error,
             'maids'     => config('maids', []),
+            'phones'    => $phones,
             'canEdit'   => Access::can($user, 'reports', 'edit'),
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/reports.js'],

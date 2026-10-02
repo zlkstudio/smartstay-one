@@ -64,11 +64,7 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
       </div>
     <?php endif; ?>
 
-    <?php foreach ($data['maids'] as $m):
-      $summary = sprintf('%s · %s–%s: %d check-out%s%s · total %s',
-          $m['name'], $fmt($from), $fmt($to), $m['checkouts'], $m['checkouts'] === 1 ? '' : '-uri',
-          $m['intermediates'] ? ', ' . $m['intermediates'] . ' intermediar' . ($m['intermediates'] === 1 ? 'ă' : 'e') : '',
-          $money($m['total'])); ?>
+    <?php foreach ($data['maids'] as $m): ?>
       <details class="card pay-card">
         <summary class="pay-head">
           <span class="avatar role-maid"><?= h(initials($m['name'])) ?></span>
@@ -98,7 +94,30 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
             </li>
           <?php endforeach; ?>
         </ul>
-        <button type="button" class="btn btn-secondary btn-sm btn-block" data-copy="<?= h($summary) ?>"><?= icon('copy', 'icon icon-sm') ?><span>Copiază rezumatul</span></button>
+        <?php
+          // WhatsApp message: every cleaning + total. *bold* / _italic_ are WhatsApp markup.
+          // The "Checklist x2" and "tarif implicit" flags stay internal — never sent to the maid.
+          $wa = ['*Plata curățenii · ' . $m['name'] . '*', '_' . $fmt($from) . ' – ' . $fmt($to) . '.' . date('Y', strtotime($to)) . '_', ''];
+          foreach ($m['lines'] as $l) {
+              $wa[] = '• ' . $dayName($l['date']) . ' ' . $fmt($l['date']) . ' · Apt ' . $l['apartment']
+                  . ($l['type'] === 'intermediate' ? ' (intermediară)' : '') . ' · ' . (int) $l['rate'] . ' RON';
+          }
+          $wa[] = '';
+          $wa[] = 'Check-out: ' . (int) $m['checkouts'] . ($m['intermediates'] ? ' · Intermediare: ' . (int) $m['intermediates'] : '');
+          $wa[] = '*Total: ' . $money($m['total']) . '*';
+          $wa[] = '';
+          $wa[] = 'Mulțumim! 🙏';
+          $waText = implode("\n", $wa);
+          $waPhone = $m['key'] !== null ? ($phones[$m['key']] ?? '') : '';
+          $waUrl = 'https://api.whatsapp.com/send?' . ($waPhone !== '' ? 'phone=' . rawurlencode($waPhone) . '&' : '') . 'text=' . rawurlencode($waText);
+        ?>
+        <div class="btn-grid-2">
+          <a class="btn btn-whatsapp btn-sm" href="<?= h($waUrl) ?>" target="_blank" rel="noopener"><?= icon('whatsapp', 'icon icon-sm') ?><span>Trimite pe WhatsApp</span></a>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy="<?= h($waText) ?>"><?= icon('copy', 'icon icon-sm') ?><span>Copiază</span></button>
+        </div>
+        <?php if ($m['key'] !== null && $waPhone === ''): ?>
+          <p class="hint">Fără număr: WhatsApp te lasă să alegi contactul. Adaugă telefonul în contul ei de Menajeră.</p>
+        <?php endif; ?>
       </details>
     <?php endforeach; ?>
   <?php endif; ?>
