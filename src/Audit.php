@@ -17,6 +17,12 @@ final class Audit
         'user.deactivate'     => 'A dezactivat contul',
         'user.activate'       => 'A reactivat contul',
         'permission.update'   => 'A modificat permisiunile pentru',
+        // Etapa 2 — module actions (shown in module history, not on the Users page)
+        'reservation.status'      => 'A modificat statusul rezervării',
+        'reservation.nuki'        => 'A trimis codul Nuki',
+        'housekeeping.assign'     => 'A alocat curățenii',
+        'housekeeping.intermediate' => 'A înregistrat o curățenie intermediară',
+        'housekeeping.checklist'  => 'A trimis checklist-ul',
     ];
 
     public static function log(
@@ -52,7 +58,7 @@ final class Audit
              FROM audit_log a
              LEFT JOIN users u ON u.id = a.user_id
              LEFT JOIN users t ON a.target_type = \'user\' AND t.id = a.target_id
-             WHERE a.action NOT IN (\'auth.login\', \'auth.logout\')
+             WHERE (a.action LIKE \'user.%\' OR a.action LIKE \'permission.%\' OR a.action = \'auth.password_change\')
              ORDER BY a.id DESC
              LIMIT ' . max(1, min(100, $limit))
         );

@@ -34,6 +34,7 @@ PROTECTED_CONFIGS=(
   config/database-reservations.php
   config/previo.php
   config/nuki.php
+  config/checkin-sync.php
 )
 # Required before the first deploy. The rest are optional until their stage.
 REQUIRED_CONFIGS=(config/app.php config/database-one.php)
@@ -83,7 +84,7 @@ backup() {
   local file="$BACKUPS/$name-$(date +%Y%m%d-%H%M%S).tar.gz"
   # Code only: configs and storage stay in place and are not part of a rollback.
   tar -czf "$file" -C "$dir" --exclude=./config/app.php --exclude='./config/database-*.php' \
-      --exclude=./config/previo.php --exclude=./config/nuki.php --exclude=./storage .
+      --exclude=./config/previo.php --exclude=./config/nuki.php --exclude=./config/checkin-sync.php --exclude=./storage .
   info "Backup: $file"
   ls -1t "$BACKUPS/$name-"*.tar.gz 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
 }

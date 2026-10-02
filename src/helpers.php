@@ -147,3 +147,14 @@ function icon(string $name, string $class = 'icon'): string
 {
     return '<svg class="' . h($class) . '" aria-hidden="true"><use href="#i-' . h($name) . '"/></svg>';
 }
+
+/** Decoded JSON request body (POST from ONE.api). Empty array when absent/invalid. */
+function request_json(): array
+{
+    static $body = null;
+    if ($body === null) {
+        $decoded = json_decode((string) file_get_contents('php://input'), true);
+        $body = is_array($decoded) ? $decoded : [];
+    }
+    return $body;
+}

@@ -6,7 +6,9 @@ require dirname(__DIR__) . '/src/bootstrap.php';
 use One\Auth\Access;
 use One\Auth\Auth;
 use One\Controllers\AuthController;
+use One\Controllers\HousekeepingController;
 use One\Controllers\PageController;
+use One\Controllers\ReservationsController;
 use One\Controllers\UsersController;
 use One\Http\Guard;
 use One\Http\Router;
@@ -72,7 +74,30 @@ $router->get('/account', static fn() => AuthController::account());
 $router->get('/account/password', static fn() => AuthController::showPassword());
 $router->post('/account/password', static fn() => AuthController::changePassword());
 
-foreach (Access::MODULES as $module) {
+// ── Rezervări (Etapa 2) ────────────────────────────────────────────────────
+foreach (ReservationsController::TABS as $tab => $meta) {
+    $router->get($meta['path'], static fn() => ReservationsController::page($tab));
+}
+$router->get('/api/reservations/list', static fn() => ReservationsController::list());
+$router->get('/api/reservations/recent', static fn() => ReservationsController::recent());
+$router->post('/api/reservations/status', static fn() => ReservationsController::status());
+$router->post('/api/reservations/nuki', static fn() => ReservationsController::nuki());
+$router->get('/api/reservations/whatsapp', static fn() => ReservationsController::whatsapp());
+$router->post('/api/reservations/whatsapp', static fn() => ReservationsController::whatsappMark());
+
+// ── Housekeeping (Etapa 2) ─────────────────────────────────────────────────
+$router->get('/housekeeping', static fn() => HousekeepingController::index());
+$router->get('/housekeeping/intermediate', static fn() => HousekeepingController::intermediate());
+$router->get('/housekeeping/checklist/{apartment}', static fn(array $p) => HousekeepingController::checklist($p));
+$router->get('/api/housekeeping/checkouts', static fn() => HousekeepingController::checkouts());
+$router->post('/api/housekeeping/assign', static fn() => HousekeepingController::assign());
+$router->post('/api/housekeeping/unassign', static fn() => HousekeepingController::unassign());
+$router->get('/api/housekeeping/active-guests', static fn() => HousekeepingController::activeGuests());
+$router->post('/api/housekeeping/intermediate', static fn() => HousekeepingController::createIntermediate());
+$router->post('/api/housekeeping/checklist', static fn() => HousekeepingController::submitChecklist());
+
+// Modules still on the legacy apps (Etapa 3): protected shells.
+foreach (['inventory', 'reports'] as $module) {
     $router->get('/' . $module, static fn() => PageController::module($module));
 }
 
@@ -86,7 +111,7 @@ $router->post('/users/{id}/toggle', static fn(array $p) => UsersController::togg
 
 $router->get('/settings', static fn() => PageController::settings());
 
-// JSON API — Stage 2 modules add their endpoints here, each opening with Guard::requireAccess().
+// JSON API — every module endpoint opens with Guard::requireAccess().
 $router->get('/api/me', static function (): never {
     $user = Guard::requireLogin();
     $modules = [];

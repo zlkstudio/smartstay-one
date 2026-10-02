@@ -27,6 +27,16 @@ return [
         'cristina' => 'Cristina',
     ],
 
+    // Guest App links generated in Rezervări (production URL, no trailing slash).
+    'guest_app_url' => 'https://smartstay.ro/guest-app',
+
+    // Housekeeping checklist e-mail (same addresses as housekeeping/config/app_config.php).
+    'housekeeping' => [
+        'report_to' => 'cleaning@smartconceptliving.ro',
+        'from'      => 'no-reply@smartconceptliving.ro',
+        'from_name' => 'SmartStay Cleaning System',
+    ],
+
     // Legacy apps, linked from module pages during the transition.
     'legacy_urls' => [
         'reservations' => 'https://smartstay.ro/reservations/today.php',

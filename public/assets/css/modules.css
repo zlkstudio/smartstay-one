@@ -1,0 +1,142 @@
+/* SmartStay ONE — Etapa 2 modules: Rezervări (blue) + Housekeeping (violet).
+   Built on the tokens in app.css; light/dark follow [data-theme]. Mobile-first. */
+
+/* ── Shared bits ─────────────────────────────────────────────────────── */
+.icon-btn-surface { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--text-2); }
+.icon-btn.is-spinning .icon { animation: spin 0.7s linear; }
+.pre { white-space: pre-line; }
+.res-list { display: flex; flex-direction: column; gap: 12px; }
+.res-skeleton { display: flex; flex-direction: column; gap: 10px; }
+
+.tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--r-ctl); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 1; display: grid; place-items: center; min-width: 76px; height: 38px; padding: 0 10px; border-radius: 9px;
+  font-size: 14.5px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.tab.is-active { background: var(--surface); color: var(--blue); box-shadow: var(--shadow); font-weight: 600; }
+.tabs-violet .tab.is-active { color: var(--violet); }
+
+.search { position: relative; }
+.search > .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.search .input { padding-left: 42px; }
+
+.apt-badge { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; flex: none;
+  min-width: 56px; height: 56px; padding: 0 8px; border-radius: 14px; background: var(--blue-soft); color: var(--blue); }
+.apt-badge span { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+.apt-badge strong { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.apt-badge-violet { background: var(--violet-soft); color: var(--violet); }
+
+.strip { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-ctl); font-size: 14.5px; }
+.strip .icon { margin-top: 1px; }
+.strip-blue { background: var(--blue-soft); color: var(--blue); }
+.strip-warning { background: var(--warning-soft); color: var(--warning); }
+.strip-success { background: var(--success-soft); color: var(--success); }
+.strip-neutral { background: var(--surface-2); color: var(--text-2); }
+
+.btn-violet { background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%); color: #fff; box-shadow: 0 6px 18px rgba(124, 58, 237, 0.28); }
+.btn-whatsapp { background: #25d366; color: #fff; }
+.btn.is-disabled { opacity: 0.5; pointer-events: none; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn-grid .btn-whatsapp { grid-column: 1 / -1; }
+.link-btn { border: 0; background: none; padding: 4px 0; font: 600 14px var(--font); color: var(--blue); cursor: pointer; white-space: nowrap; }
+.link-code { font-size: 13.5px !important; font-weight: 500 !important; letter-spacing: 0 !important; line-height: 1.5 !important; }
+
+/* ── Rezervări: card ─────────────────────────────────────────────────── */
+.res-card { display: flex; flex-direction: column; gap: 12px; border-left: 4px solid var(--border); }
+.res-card.is-pending { border-left-color: var(--warning); }
+.res-card.is-attention { border-left-color: var(--critical); }
+.res-card.is-complete { border-left-color: var(--success); }
+.res-card__head { display: flex; gap: 12px; align-items: flex-start; }
+.res-card__name { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.res-card__phone { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 0; border: 0; background: none;
+  font: 500 14.5px var(--font); color: var(--text-2); cursor: pointer; font-variant-numeric: tabular-nums; }
+.res-card__dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.res-card__dates > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--surface-2); }
+.res-card__dates strong { font-weight: 600; font-size: 15px; }
+.res-card__dates .muted { font-size: 13.5px; }
+
+.toggle-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.toggle-card { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "icon . switch" "text text text";
+  align-items: center; gap: 8px; width: 100%; padding: 10px 12px 12px; text-align: left;
+  border: 1.5px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); color: var(--text);
+  font: inherit; cursor: pointer; transition: border-color 0.15s, background 0.15s; touch-action: manipulation; }
+.toggle-card:disabled { cursor: default; opacity: 0.7; }
+.toggle-card__icon { grid-area: icon; display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 10px; background: var(--surface-2); color: var(--text-3); }
+.toggle-card__text { grid-area: text; display: flex; flex-direction: column; min-width: 0; }
+.toggle-card__label { font-size: 14.5px; font-weight: 600; line-height: 1.2; }
+.toggle-card__hint { font-size: 12.5px; color: var(--text-3); }
+.switch { grid-area: switch; position: relative; width: 36px; height: 22px; flex: none; border-radius: 999px; background: var(--border); transition: background 0.2s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
+.toggle-card.is-on { border-color: var(--success); background: var(--success-soft); }
+.toggle-card.is-on .toggle-card__icon { background: var(--success); color: #fff; }
+.toggle-card.is-on .toggle-card__hint { color: var(--success); font-weight: 500; }
+.toggle-card.is-on .switch { background: var(--success); }
+.toggle-card.is-on .switch::after { transform: translateX(14px); }
+
+.res-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.act { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 10px;
+  border: 0; border-radius: var(--r-ctl); font: 600 14px var(--font); cursor: pointer; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; background: var(--surface-2); color: var(--text); touch-action: manipulation; }
+.act:active { transform: scale(0.97); }
+.act[disabled] { opacity: 0.45; cursor: default; transform: none; }
+.act .spinner { width: 15px; height: 15px; }
+.act-whatsapp { background: #25d366; color: #fff; }
+.act-nuki { background: var(--blue-grad); color: #fff; font-variant-numeric: tabular-nums; }
+.act-nuki.is-sent, .act-sent { background: var(--success-soft); color: var(--success); }
+.act-guest { background: var(--blue-soft); color: var(--blue); }
+.act-checkin { background: var(--violet-soft); color: var(--violet); }
+
+/* WhatsApp outreach */
+.wa-card { display: flex; flex-direction: column; gap: 12px; }
+.wa-card.is-sent { opacity: 0.72; }
+.wa-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 13.5px; }
+.wa-meta .icon { width: 15px; height: 15px; vertical-align: -2px; }
+.wa-phone { margin-top: 6px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.wa-target { margin-top: 6px; font-size: 13.5px; color: var(--text-2); }
+.wa-preview { padding: 12px; border-radius: var(--r-ctl); background: var(--surface-2); font-size: 14px; color: var(--text-2); }
+
+/* ── Housekeeping ────────────────────────────────────────────────────── */
+.hk-card { display: flex; align-items: center; gap: 12px; color: inherit; }
+article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; }
+.hk-card .list-sub .icon { width: 15px; height: 15px; vertical-align: -2px; }
+.hk-status { display: block; margin-top: 6px; }
+.hk-status .badge .icon { width: 14px; height: 14px; }
+.hk-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.hk-card.is-selectable { cursor: pointer; touch-action: manipulation; }
+.hk-card .pick { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); color: transparent; }
+.hk-card.is-selected { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.hk-card.is-selected .pick { background: var(--violet); border-color: var(--violet); color: #fff; }
+.hk-inter { display: flex; flex-direction: column; gap: 12px; }
+
+.assign-bar {
+  position: sticky; bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px); z-index: 20;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px; margin: 4px -4px 0;
+  background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg);
+}
+.maid-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+
+/* Checklist */
+.checklist-section { display: flex; flex-direction: column; margin: 0; min-width: 0; padding: 6px 16px; }
+.checklist-section legend { float: left; width: 100%; margin: 10px 0 4px; padding: 0; }
+.check-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--border);
+  font-size: 15.5px; cursor: pointer; touch-action: manipulation; }
+.checklist-section legend + .check-row { border-top: 0; }
+.check-row input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--violet); }
+.checklist-section[disabled] .check-row { opacity: 0.6; cursor: default; }
+
+.photo-slot { border: 1.5px dashed var(--border); border-radius: var(--r-ctl); transition: border-color 0.15s, background 0.15s; }
+.photo-slot.is-done { border-style: solid; border-color: var(--success); background: var(--success-soft); }
+.photo-slot.is-error { border-color: var(--critical); background: var(--critical-soft); }
+.photo-pick { display: flex; align-items: center; gap: 12px; padding: 10px; cursor: pointer; }
+.photo-thumb { display: grid; place-items: center; width: 56px; height: 56px; flex: none; overflow: hidden;
+  border-radius: 10px; background: var(--violet-soft); color: var(--violet); }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-slot.is-error .list-sub { color: var(--critical); }
+
+.main.no-nav .fab-bar, .main.no-nav .assign-bar { bottom: calc(var(--safe-bottom) + 12px); }
+
+@media (min-width: 640px) {
+  .res-actions { grid-template-columns: repeat(4, 1fr); }
+  .res-actions-2 { grid-template-columns: 1fr 1fr; }
+}

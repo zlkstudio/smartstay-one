@@ -19,6 +19,9 @@ $installGate = $installGate ?? true;
 <link rel="preload" href="/assets/fonts/jost-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= h(asset('assets/css/fonts.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('assets/css/app.css')) ?>">
+<?php foreach (($styles ?? []) as $__style): ?>
+<link rel="stylesheet" href="<?= h(asset($__style)) ?>">
+<?php endforeach; ?>
 <script nonce="<?= h(csp_nonce()) ?>">
 (function () {
   var store = null;
@@ -37,3 +40,6 @@ $installGate = $installGate ?? true;
 })();
 </script>
 <script src="<?= h(asset('assets/js/app.js')) ?>" defer></script>
+<?php foreach (($scripts ?? []) as $__script): ?>
+<script src="<?= h(asset($__script)) ?>" defer></script>
+<?php endforeach; ?>

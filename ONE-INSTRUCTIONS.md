@@ -1,9 +1,25 @@
 # SmartStay ONE — Instrucțiuni
 
-> **Ultima actualizare**: 28 septembrie 2026
-> **Versiune**: 1.0.0-stage1 (Fundația: login, roluri, PWA, utilizatori, stare sistem)
-> **Țintă**: `one.smartstay.ro` (producție) · `one-staging.smartstay.ro` (staging)
+> **Ultima actualizare**: 2 octombrie 2026
+> **Versiune**: 1.1.0-stage2 (Rezervări + Housekeeping portate în ONE)
+> **Țintă**: `one.smartstay.ro` — producție directă, fără staging
+> **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` (Mac Mini)
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
+
+---
+
+## 0. Stare curentă
+
+✅ Repo `zlkstudio/smartstay-one` pe GitHub (main) · `one.smartstay.ro` live, docroot `/public`, SSL
+✅ Fix 403 (`.htaccess` din rădăcina repo-ului eliminat) — pe GitHub
+✅ Baza Rezervări confirmată: `smartconcept_reservations`
+✅ **Etapa 2 scrisă și testată local** (MariaDB + Previo/Nuki simulate, iPhone 390px, light/dark)
+🔲 Push Etapa 2 + `./deploy-one.sh production` (rulează și `sql/002_stage2.sql`)
+🔲 Config-uri noi pe server: `previo.php`, `nuki.php`, `checkin-sync.php` (§6.4)
+🔲 Primul admin creat + `php bin/doctor.php` → ✅ (4/4 baze, menajere potrivite)
+🔲 Conturi menajere (rol Menajeră + numele din listă) și test pe telefon
+🔲 Rotit tokenul Nuki (a apărut în clar într-o sesiune de lucru pe 02.10.2026)
+➡️ Următorul pas: **Etapa 3** — Inventar + Rapoarte (plata menajerelor, cron `report_cache`)
 
 ---
 
@@ -11,202 +27,125 @@
 
 Un singur login pentru aplicațiile interne (Rezervări, Housekeeping, Inventar) + Rapoarte.
 ONE **nu mută date**: citește și scrie direct în bazele existente ale fiecărei aplicații,
-plus o bază nouă `smartconcept_one` pentru conturi, sesiuni, audit și cache de rapoarte.
-Aplicațiile vechi rămân online tot timpul tranziției.
-
-### Etape
+plus o bază nouă `smartconcept_one` pentru conturi, sesiuni, audit, marcaje WhatsApp și cache de rapoarte.
+Aplicațiile vechi rămân online tot timpul tranziției și lucrează pe aceleași rânduri.
 
 | Etapă | Conținut | Stare |
 |---|---|---|
-| **1 · Fundația** | login, 4 roluri, middleware, sesiuni 90 zile, PWA + pagină instalare, utilizatori, stare sistem | ✅ acest pachet |
-| 2 · Rezervări + Housekeeping | portare 1:1, Previo + Nuki copiate în `src/Integrations/` | următoarea |
-| 3 · Inventar + Rapoarte | + cron `report_cache` | |
-| 4 · Setări apartamente, migrare conturi reale, DNS final | | |
-
-În Etapa 1, paginile de modul există și sunt **deja protejate de roluri** exact ca în Etapa 2;
-afișează „În curând în ONE" + buton spre aplicația actuală (ascuns pentru menajere).
+| **1 · Fundația** | login, 4 roluri, middleware, sesiuni 90 zile, PWA + instalare, utilizatori, stare sistem | ✅ live |
+| **2 · Rezervări + Housekeeping** | portare 1:1, Previo + Nuki în `src/Integrations/` | ✅ gata de deploy |
+| 3 · Inventar + Rapoarte | + raport plată menajere + cron `report_cache` | următoarea |
+| 4 · Setări apartamente, migrare conturi reale | regulile din `Properties.php` / `Checklist.php` → UI | |
 
 ---
 
 ## 2. Structura
 
 ```
-smartstay-one/                      repo zlkstudio/smartstay-one
-├── public/                         ← DOCUMENT ROOT al subdomeniului
-│   ├── index.php                   front controller: headere securitate, rute
-│   ├── .htaccess                   HTTPS, rewrite, cache assets
-│   ├── manifest.webmanifest        PWA
-│   ├── sw.js                       service worker (shell cache, fără HTML/API)
-│   ├── offline.html
-│   └── assets/ css/ js/ fonts/ img/   Jost self-hosted (latin + latin-ext pt. ș ț ă)
+smartstay-one/
+├── public/                         ← DOCUMENT ROOT
+│   ├── index.php                   front controller: headere securitate, TOATE rutele
+│   └── assets/css/ app.css · modules.css (Etapa 2)
+│       assets/js/  app.js · reservations.js · housekeeping.js · checklist.js
 ├── src/
-│   ├── bootstrap.php  helpers.php
-│   ├── Db/Database.php             o conexiune PDO per bază, lazy
-│   ├── Auth/Auth.php               sesiuni, login, CSRF, rotire token
-│   ├── Auth/Access.php             MATRICEA de roluri (singurul loc)
-│   ├── Auth/LoginThrottle.php      anti brute-force
-│   ├── Http/Router.php  Http/Guard.php   rute + middleware
-│   ├── Controllers/                Auth, Page, Users
-│   ├── Users/UserRepository.php
-│   ├── System/HealthCheck.php      verifică baze, tabele, menajere, server
-│   └── Audit.php
-├── views/                          layout, partials, pages/
-├── sql/001_one_schema.sql          aplicat de bin/migrate.php
-├── bin/  migrate.php  create-user.php  doctor.php
+│   ├── Auth/ Http/ Db/ Users/ System/ Audit.php     (Etapa 1)
+│   ├── Properties.php              parcări (nu sunt apartamente), telefon RO / WhatsApp
+│   ├── Integrations/
+│   │   ├── Previo.php              searchReservations (XML), fallback contactPerson → guest
+│   │   ├── Nuki.php                PUT /smartlock/{id}/auth, 409 = succes, log storage/logs/nuki.log
+│   │   ├── NukiCode.php            codul din telefon (identic cu Guest App)
+│   │   └── GuestAppSync.php        toggle Check-in → admin_mark_checkin.php (deblochează codul)
+│   ├── Reservations/  ReservationFeed · StatusRepository · OutreachRepository
+│   ├── Housekeeping/  HousekeepingFeed · CleaningRepository · Checklist · ChecklistMailer
+│   └── Controllers/   Auth, Page, Users, Reservations, Housekeeping
+├── views/pages/ reservations/index.php · housekeeping/{index,maid,checklist}.php
+├── sql/ 001_one_schema.sql · 002_stage2.sql (whatsapp_outreach)
+├── bin/ migrate.php  create-user.php  doctor.php
 ├── config/                         *.example.php în git; *.php reale DOAR pe server
-├── storage/logs/                   app.log (în afara docroot, persistent)
-├── deploy/deploy-one.sh
-
+├── storage/logs/                   app.log, nuki.log
+└── deploy/deploy-one.sh
 ```
 
-`config/`, `src/`, `storage/` nu sunt niciodată servite: docroot-ul e `public/`.
-Fiecare folder din afara `public/` are propriul `.htaccess` cu „Require all denied".
-⚠️ NU pune `.htaccess` cu „Require all denied" în rădăcina repo-ului: Apache citește și `.htaccess`-urile
-din folderele părinte ale docroot-ului, deci ar bloca tot site-ul cu 403 (incident 01.10.2026).
+⚠️ NU pune `.htaccess` cu „Require all denied" în rădăcina repo-ului (blochează și `public/` → 403, incident 01.10.2026).
 
 ---
 
 ## 3. Baze de date
 
-| Bază | Config | Rol |
+| Bază | Config | Ce face ONE acolo |
 |---|---|---|
-| `smartconcept_one` (nouă) | `config/database-one.php` | users, permissions, sessions, login_attempts, audit_log, report_cache, schema_migrations |
-| `smartconcept_cleaning` | `config/database-cleaning.php` | Housekeeping (Etapa 2) |
-| `smartconcept_inventoryStay` | `config/database-inventory.php` | Inventar (Etapa 3) |
-| **de confirmat** | `config/database-reservations.php` | Rezervări — `php bin/doctor.php --find-reservations` |
+| `smartconcept_one` | `database-one.php` | users, permissions, sessions, login_attempts, audit_log, report_cache, **whatsapp_outreach** |
+| `smartconcept_reservations` | `database-reservations.php` | citește/scrie `reservation_status` + `reservation_status_log` (aceleași rânduri ca app-ul vechi) |
+| `smartconcept_cleaning` | `database-cleaning.php` | `maid_assignments`, `cleaning_records`, `checklist_submissions` (aceleași ca app-ul vechi) |
+| `smartconcept_inventoryStay` | `database-inventory.php` | Etapa 3 |
 
-Patru fișiere separate, `chmod 600`, niciodată combinate.
-`smartconcept_one` rulează în **UTC**; afișarea convertește în Europe/Bucharest.
-
-Diferențe față de promptul de construcție (intenționate):
-- `users.must_change_password` — flag explicit pentru parola temporară.
-- `users.phone` UNIQUE — menajerele intră cu telefonul, nu au nevoie de email.
-- `sessions.id` = **sha256** al tokenului din cookie; tokenul brut nu ajunge în DB.
-- `login_attempts` — tabel nou pentru limitarea încercărilor.
+`maid_name` rămâne numele afișat („Ioana") — exact cum scrie app-ul vechi, ca rapoartele de plată să meargă în paralel.
 
 ---
 
 ## 4. Autentificare și roluri
 
-**Login**: email **sau** telefon (`0784 429 677`, `+40…`, `0040…` — normalizat la `40784429677`).
-
-**Sesiune „Ține-mă minte"** (bifat implicit): 90 de zile, glisantă. Tokenul se rotește cel mult
-o dată la 24h; vechiul token mai merge 2 minute (cererile paralele ale PWA-ului nu deloghează).
-Nebifat: 12 ore. Logout, reset parolă sau dezactivare → sesiunile dispar imediat din DB.
-
-**Matricea** (`src/Auth/Access.php`):
+**Matricea** (`src/Auth/Access.php`) — neschimbată:
 
 | Rol | Rezervări | Housekeeping | Inventar | Rapoarte | Utilizatori/Setări |
 |---|---|---|---|---|---|
 | Admin | edit | edit | edit | edit | edit |
 | Manager | edit | edit | edit | edit | — |
-| Menajeră | — | edit (doar ale ei) | — | — | — |
+| Menajeră | — | doar lista ei | — | — | — |
 | Utilizator | după `permissions` | idem | idem | idem | — |
 
-Reguli implementate:
-- Fiecare pagină și endpoint începe cu `Guard::requireAccess($modul, 'view'|'edit')`. UI-ul doar oglindește.
-- Modul nepermis = ascuns din navigație; accesat direct → 403 „Nu ai acces la această secțiune".
-- Menajera: aterizează pe `/housekeeping`, fără bară de navigare, fără link spre aplicația veche.
-- Cont nou / reset → parolă temporară (ex. `Ab3d-Ef6h-Jk8m`), schimbare **obligatorie** la prima intrare
-  (orice altă pagină sau API redirecționează la `/account/password`).
-- Nu îți poți schimba propriul rol și nu te poți dezactiva; ultimul admin activ e protejat.
-- `audit_log`: creare cont, modificare, permisiuni (before/after), reset parolă, (de)activare, login/logout.
-- CSRF pe orice POST (câmp `_csrf` sau header `X-CSRF-Token`) + verificare `Origin`. **Fără CORS deschis.**
-- Brute-force: 5 eșecuri / 15 min per utilizator, 20 per IP.
+Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
+- **view**: vede listele; toggle-uri, Nuki, „Trimis" WhatsApp, alocări și checklist sunt blocate (API → 403).
+- **edit**: tot ce făcea app-ul vechi.
+- **Menajera**: vede DOAR apartamentele alocate ei azi (`maid_assignments` după `config('maids')[maid_ref]`).
+  Orice alt apartament, `/housekeeping/intermediate`, `/api/housekeeping/checkouts`, `/reservations` → 403.
+- Fiecare acțiune de modul ajunge în `audit_log` (`reservation.status`, `reservation.nuki`, `housekeeping.*`).
+  Pagina Utilizatori arată doar activitatea pe conturi.
 
 ---
 
-## 5. PWA și pagina de instalare
+## 5. PWA
 
-- Prima vizită într-un tab de browser → `/install` (o singură dată; flag `one-install-done` în localStorage).
-- Android/Chrome → buton „Instalează aplicația" (prompt nativ). Fără prompt în 2,5s → pași din meniul ⋮.
-- iPhone Safari → 3 pași cu iconițele reale (Distribuie → Adaugă pe ecranul principal).
-- Deschis din WhatsApp/Facebook/Instagram → explică să deschidă în Safari/Chrome + „Copiază linkul".
-- În aplicația instalată, pagina nu apare niciodată. Din „Contul meu" se poate redeschide manual.
-- Service worker: cache doar pentru CSS/JS/fonturi/iconițe. **HTML-ul autentificat și `/api/` nu se cache-uiesc
-  niciodată.** Fără rețea → `offline.html`.
+Ca în Etapa 1. Service worker-ul cache-uiește doar `/assets/` (URL cu `?v=filemtime`);
+HTML și `/api/` merg mereu la rețea. Paginile de modul încarcă CSS/JS prin `$styles` / `$scripts` din controller.
 
 ---
 
-## 6. Punere în funcțiune pe server (o singură dată)
+## 6. Server
 
-> **Decizie 30.09.2026: fără staging — deploy direct pe producție** (`~/one.smartstay.ro`, docroot `/public`).
-> Pașii de mai jos rămân valabili înlocuind `one-staging.smartstay.ro` cu `one.smartstay.ro`.
-> `deploy-one.sh production` verifică staging-ul doar dacă folderul `~/one-staging.smartstay.ro` există.
-> Etapa 1 scrie doar în `smartconcept_one`; bazele celorlalte aplicații sunt doar citite.
+> Producție directă: `one.smartstay.ro` → `~/one.smartstay.ro`, docroot `/public`. Fără staging.
 
-### 6.1 GitHub + SSH
+| Element | Valoare |
+|---|---|
+| Cod pe server | `~/one.smartstay.ro/` · sursă git `~/source/smartstay-one/` · script `~/deploy-one.sh` |
+| Config-uri (`chmod 600`, protejate de deploy) | `app.php`, `database-{one,cleaning,inventory,reservations}.php`, `previo.php`, `nuki.php`, `checkin-sync.php` |
+| Cheie GitHub server | `~/.ssh/id_ed25519_one` · alias `github-one` · deploy key read-only |
+
+### 6.1–6.3 Prima instalare, primul admin, Mac nou
+Neschimbate față de Etapa 1 (vezi istoricul acestui fișier pe GitHub).
+
+### 6.4 Etapa 2 — o singură dată pe server
 ```bash
-# Local (Mac): repo nou privat zlkstudio/smartstay-one, apoi în folderul acestui pachet:
-git remote add origin git@github.com:zlkstudio/smartstay-one.git
-git push -u origin main
-
-# Server:
 ssh smartstay
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_one -N "" -C "deploy-one@s11993"
-cat ~/.ssh/id_ed25519_one.pub     # → GitHub → smartstay-one → Settings → Deploy keys (read-only)
-cat >> ~/.ssh/config <<'EOF'
+cd ~/source/smartstay-one && git fetch && git reset --hard origin/main
+cp deploy/deploy-one.sh ~/ && chmod +x ~/deploy-one.sh     # scriptul nou protejează checkin-sync.php
 
-Host github-one
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/id_ed25519_one
-  IdentitiesOnly yes
-EOF
-ssh -T git@github-one            # "You've successfully authenticated"
+T=~/one.smartstay.ro/config; S=~/source/smartstay-one/config
+for f in previo nuki checkin-sync; do [ -f $T/$f.php ] || cp $S/$f.example.php $T/$f.php; done
+chmod 600 $T/*.php
+nano $T/previo.php        # username + password din ~/smartstay.ro/guest-app/config/previo.php
+nano $T/nuki.php          # api_token din reservations/config/nuki.php + smartlocks din nuki-smartlocks.php
+nano $T/checkin-sync.php  # identic cu ~/smartstay.ro/reservations/config/checkin-sync.php
+nano $T/database-reservations.php   # database => smartconcept_reservations + user/parolă
+nano $T/app.php           # adaugă cheile noi din config/app.example.php: guest_app_url, housekeeping
+
+cd ~ && ./deploy-one.sh production     # aplică sql/002_stage2.sql
+cd ~/one.smartstay.ro && php bin/doctor.php
 ```
-
-### 6.2 cPanel
-1. **Domains → Create a New Domain**: `one-staging.smartstay.ro`, document root
-   **`one-staging.smartstay.ro/public`** (cu `/public` la final!). Apoi la fel `one.smartstay.ro` → `one.smartstay.ro/public`.
-2. **SSL/TLS Status → Run AutoSSL** pentru ambele.
-3. **MySQL Databases**: creează `smartconcept_one`, adaugă userul `smartconcept_romeo` cu ALL PRIVILEGES.
-
-Staging și producția folosesc **aceleași baze de date** (ca la Guest App). Testele pe staging
-modifică date reale — folosește conturi de test.
-
-### 6.3 Primul deploy pe staging
-```bash
-git clone git@github-one:zlkstudio/smartstay-one.git ~/source/smartstay-one
-cp ~/source/smartstay-one/deploy/deploy-one.sh ~/ && chmod +x ~/deploy-one.sh
-
-T=~/one-staging.smartstay.ro
-mkdir -p $T/config
-cp ~/source/smartstay-one/config/app.example.php          $T/config/app.php
-cp ~/source/smartstay-one/config/database-one.example.php $T/config/database-one.php
-nano $T/config/app.php            # base_url => 'https://one-staging.smartstay.ro'
-nano $T/config/database-one.php   # user + parolă (aceleași ca la housekeeping)
-chmod 600 $T/config/*.php
-
-./deploy-one.sh staging           # rsync + migrări + ping + raport
-```
-
-### 6.4 Primul admin + baza Rezervări
-```bash
-cd ~/one-staging.smartstay.ro
-php bin/create-user.php --name="Romeo" --email=contact@radoiromeo.ro
-#   → afișează parola temporară; o schimbi la prima intrare pe telefon
-
-php bin/doctor.php --find-reservations
-#   → citește DB_NAME/DB_USER din ~/smartstay.ro/reservations/config/database.php (fără parolă)
-cp ~/source/smartstay-one/config/database-reservations.example.php config/database-reservations.php
-nano config/database-reservations.php     # numele găsit + credentialele
-# la fel pentru database-cleaning.php și database-inventory.php
-chmod 600 config/*.php
-php bin/doctor.php                         # țintă: ✅ Totul în regulă
-```
-Același raport e și în aplicație: **Contul meu → Setări și stare sistem**.
-Verifică acolo secțiunea **Menajere**: numele din `cleaning_records` trebuie să apară în `maids` din
-`config/app.php` — altfel Etapa 2 nu le poate lega de conturi.
-
-### 6.5 Producție
-Doar după ce staging a fost folosit câteva zile:
-```bash
-T=~/one.smartstay.ro; mkdir -p $T/config
-cp ~/one-staging.smartstay.ro/config/*.php $T/config/
-nano $T/config/app.php            # base_url => 'https://one.smartstay.ro'  (scriptul verifică!)
-chmod 600 $T/config/*.php
-./deploy-one.sh production
+`app.php` nou (opțional — au valori implicite în cod):
+```php
+'guest_app_url' => 'https://smartstay.ro/guest-app',
+'housekeeping'  => ['report_to' => 'cleaning@smartconceptliving.ro', 'from' => 'no-reply@smartconceptliving.ro', 'from_name' => 'SmartStay Cleaning System'],
 ```
 
 ---
@@ -214,40 +153,47 @@ chmod 600 $T/config/*.php
 ## 7. Deploy — rutina
 
 ```bash
-# Local
-git add -A && git commit -m "…" && git push origin main
-git log origin/main --oneline -1          # verifică că a ajuns pe GitHub ÎNAINTE de deploy
-
+# Mac
+cd /Users/romeo/Projects/SmartStay/smartstay-one
+git push origin main && git log origin/main --oneline -1
 # Server
-./deploy-one.sh staging                   # sau: staging feature/rezervari
-./deploy-one.sh production                # refuză dacă origin/main ≠ ce e pe staging
-./deploy-one.sh rollback production       # codul anterior; config + storage neatinse
-./deploy-one.sh status
+ssh smartstay && ./deploy-one.sh production    # rollback: ./deploy-one.sh rollback production
 ```
-
-Ce protejează scriptul:
-- `PROTECTED_CONFIGS` + `storage/` sunt excluse din `rsync --delete` → nu se șterg niciodată.
-- **Fără `mv` de foldere** (lecția `data/checkin` din Guest App): codul se sincronizează pe loc.
-- Refuză deploy-ul dacă lipsește `config/app.php` / `database-one.php` sau dacă `base_url`
-  nu corespunde țintei (staging nu poate pointa spre producție și invers).
-- Backup cod înainte de fiecare deploy în `~/backups/one/` (ultimele 10).
-- Rulează `bin/migrate.php`, face ping pe `/api/ping`, afișează `bin/doctor.php`.
-
-⚠️ Scriptul face `git reset --hard origin/<branch>` — commit-urile nepush-uite nu ajung pe server.
+Patch-uri primite din chat: `git am ~/Downloads/000X-….patch && git push origin main`, apoi deploy.
+⚠️ Scriptul face `git reset --hard origin/main` — commit-urile nepush-uite nu ajung pe server.
 
 ---
 
-## 8. Etapa 2 — cum se adaugă un modul
+## 8. Etapa 2 — ce s-a portat
 
-1. Controller în `src/Controllers/ReservationsController.php`; prima linie din fiecare metodă:
-   `$user = Guard::requireAccess('reservations', 'view');` (sau `'edit'` pentru scriere).
-2. Endpoint-uri JSON în `public/index.php` sub `/api/reservations/...`; POST-urile apelează și
-   `Guard::requireCsrf()`. Din JS: `ONE.api('/api/reservations/status', {method: 'POST', body: {...}})`
-   (CSRF, timeout 15s, `cache: no-store`, redirect la login pe 401 — deja incluse).
-3. Baza: `Database::get('reservations')` — conexiunea se deschide doar când e folosită.
-4. Previo/Nuki: **copiază** clasele în `src/Integrations/` și config-urile în `config/previo.php`,
-   `config/nuki.php` (deja în `PROTECTED_CONFIGS`). Fără include cross-app, fără symlink.
-5. Menajera: filtrează **server-side** după `$user['maid_ref']` → numele din `config('maids')`.
+### Rezervări (`/reservations`, `/reservations/tomorrow`, `/reservations/whatsapp`, `/reservations/link`)
+- **Astăzi / Mâine**: carduri cu nume, telefon (copiere), apartament, check-in/out, parcare atașată
+  (telefon → nume, niciodată card separat), avertizare > 2 oaspeți, nota de housekeeping curățată,
+  toggle **Taxă oraș** + **Check-in form** (optimist, cu revenire la eroare), filtre + căutare.
+- Toggle Check-in → `GuestAppSync` (deblochează/reblochează codul); taxa se resincronizează doar dacă check-in-ul e complet.
+- **Nuki**: serverul recalculează codul din Previo (browserul nu alege ce ajunge pe yală). 409 = deja pus.
+- **WhatsApp**: mesaj Welcome + formular check-in (RO/EN după prefix); pagina de review: check-out azi / -7 / -14 zile,
+  mesaje pe platformă (Booking, Airbnb, Expedia, TravelMinit, Google), „Trimis" salvat în `whatsapp_outreach` (vizibil pe toate telefoanele, cu cine/la ce oră).
+- **Link**: ultimele 4 zile, format Dinamic / Legacy (identic cu cel vechi), Copiază / Deschide / WhatsApp.
+
+### Housekeeping (`/housekeeping`, `/housekeeping/intermediate`, `/housekeeping/checklist/{apt}`)
+- **Check-out** (staff): apartamentele cu check-out azi (fără parcări), status per apartament
+  (Nealocat / menajera / Checklist trimis / Finalizat), selectare multiplă → buton menajeră, „Anulează" alocarea.
+  Un apartament aparține unei singure menajere pe zi (realocarea mută rândul *pending*).
+- **Intermediară**: oaspeții cazați acum, 30 RON fix, `cleaning_type = 'intermediate'`.
+- **Menajera**: lista ei de azi → checklist (secțiuni + sarcini per apartament, studiourile fără Living),
+  3 poze obligatorii din zone alese aleator (comprimate în telefon, 1920px / JPEG 0.8), max **2** trimiteri
+  per apartament + zi, **doar prima se plătește**, e-mail cu pozele la `cleaning@smartconceptliving.ro`.
+- Staff-ul poate completa checklist-ul în numele menajerei alocate.
+
+### Diferențe intenționate față de app-urile vechi
+- Auto-Nuki din browser (localStorage) **nu** s-a portat: cronul `reservations/cron/auto-send-nuki.php` îl face pe server, la ora de check-in. Rămâne activ în app-ul vechi.
+- Data de azi vine de pe server (Europe/Bucharest), nu din `toISOString()` (UTC) ca în `housekeeping/index.php`.
+- Linkul Guest App de pe card alege limba după telefon (vechiul punea mereu `lang=ro`).
+- Parcările: o singură listă (`Properties::PARKING_UNITS` = 58, 88, 143, 165, 166, 167, 174, 192).
+- Pozele se validează după conținut (nu după extensie — iPhone trimite nume `.HEIC`).
+- Dacă e-mailul checklist-ului nu pleacă, trimiterea rămâne salvată și menajera vede mesajul (vechiul arunca eroare și consuma a doua trecere).
+- Marcajele WhatsApp vechi (`reservations/data/whatsapp_contacted.json`) nu se importă.
 
 ---
 
@@ -255,36 +201,35 @@ Ce protejează scriptul:
 
 | Simptom | Cauză / verificare |
 |---|---|
-| „Configurare incompletă: lipsește config/app.php" | Config-urile nu sunt create în ținta de deploy (§6.3) |
-| 404 Apache pe orice pagină | Docroot-ul nu e `…/public` sau `mod_rewrite` inactiv |
-| 403 pe tot site-ul | Există `~/one.smartstay.ro/.htaccess` cu „Require all denied” (blochează și `public/`) → șterge-l |
-| Pagina de instalare apare din nou | localStorage șters/privat; „Continuă în browser" o închide |
-| Deloghează după fiecare deschidere pe iPhone | `cookie_secure` true pe HTTP, sau „Ține-mă minte" debifat |
-| „Pagina a expirat" (419) | Token CSRF vechi (formular deschis înainte de re-login) — reîncarcă |
-| „Prea multe încercări" | 5 parole greșite în 15 min. Așteaptă sau: `DELETE FROM login_attempts WHERE identifier='…'` |
-| Admin blocat afară | `php bin/create-user.php --name=… --email=alt@… --role=admin` din SSH |
+| „Lipsește config/previo.php" pe Rezervări/Curățenie | §6.4 |
+| „Previo a răspuns cu eroare (401)" | username/parolă din `previo.php` — copiază din Guest App |
+| Nuki: „nu are yală Nuki configurată" | apartamentul lipsește din `smartlocks` în `config/nuki.php` |
+| Nuki eșuează | `tail -20 ~/one.smartstay.ro/storage/logs/nuki.log` |
+| Toast „Guest App nesincronizat" | `config/checkin-sync.php` lipsă/greșit; detalii în `storage/logs/app.log` (`GuestAppSync`) |
+| Menajera vede „Nicio curățenie alocată" | nu i s-a alocat nimic azi SAU `maid_ref` din cont ≠ cheia din `maids` (Setări → Menajere) |
+| Checklist: „Fotografia X lipsește" | `upload_max_filesize` / `post_max_size` prea mici în cPanel (min. 16M) |
+| E-mail checklist nu ajunge | `grep "checklist mail" storage/logs/app.log`; verifică `from` în `app.php` |
+| 403 pe tot site-ul | `~/one.smartstay.ro/.htaccess` cu „Require all denied" → șterge-l |
 | Eroare 500 | `tail -50 ~/one.smartstay.ro/storage/logs/app.log` |
 
 ---
 
 ## 10. Securitate
 
-- Niciodată credentiale în chat, issue sau commit. `config/*.php` e în `.gitignore` (doar `*.example.php` în git).
+- Niciodată credentiale în chat, issue sau commit. `config/*.php` e în `.gitignore`.
 - Înainte de commit: `git diff --cached | grep -iE "password|secret|bearer|token" && echo "❌ STOP" || echo "✅ Safe"`.
-- Parola admin `@Cleaning` din Housekeeping **nu** se migrează — fiecare persoană primește cont propriu.
-- CSP strict cu nonce, `X-Frame-Options: DENY`, HSTS, `Cache-Control: no-store` pe tot HTML-ul.
-- Fișiere de diagnostic (`_diagnose.php`, `db_check*.php`, `test-*.php`) sunt ignorate de git; nu le urca în `public/`.
+- Fiecare endpoint de modul: `Guard::requireAccess()`; fiecare POST: `Guard::requireCsrf()` (header `X-CSRF-Token`, și la upload-ul multipart).
+- Tokenul Nuki și parola Previo nu ajung niciodată în browser sau în loguri.
 
 ---
 
 ## 11. Referințe rapide
 
-**Repo**: `zlkstudio/smartstay-one` · **SSH alias**: `github-one` · **Server**: `smartconcept@s11993`
-**Ținte**: `~/one.smartstay.ro`, `~/one-staging.smartstay.ro` (docroot `/public`)
-**Backups**: `~/backups/one/` · **Log**: `storage/logs/app.log`
-**Rute**: `/install`, `/login`, `/`, `/account`, `/account/password`, `/reservations`, `/housekeeping`,
-`/inventory`, `/reports`, `/users`, `/users/new`, `/users/{id}/edit`, `/settings`, `/api/me`, `/api/ping`
-**Design**: Jost 400–700, `#2563eb` / `#1a6fce`, violet `#7c3aed` (Housekeeping), indigo `#4f46e5` + teal
-`#0d9488` (Inventar), radius 16 / 12, dark mode în topbar (localStorage `one-theme`).
+**Repo**: `zlkstudio/smartstay-one` · **Server**: `smartconcept@s11993` · **Țintă**: `~/one.smartstay.ro` (docroot `/public`)
+**Rute**: `/`, `/reservations[/tomorrow|/whatsapp|/link]`, `/housekeeping[/intermediate|/checklist/{apt}]`,
+`/inventory`, `/reports`, `/users`, `/settings`, `/account`
+**API**: `GET /api/reservations/{list,recent,whatsapp}` · `POST /api/reservations/{status,nuki,whatsapp}` ·
+`GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,unassign,intermediate,checklist}`
+**Design**: Jost, `#2563eb` / `#1a6fce` (Rezervări), violet `#7c3aed` (Housekeeping), radius 16 / 12, dark mode.
 
 *Document de continuitate pentru chat-uri viitoare. Update la fiecare etapă.*

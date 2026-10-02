@@ -13,7 +13,7 @@ use Throwable;
 final class HealthCheck
 {
     public const EXPECTED_TABLES = [
-        'one'          => ['users', 'permissions', 'sessions', 'login_attempts', 'audit_log', 'report_cache'],
+        'one'          => ['users', 'permissions', 'sessions', 'login_attempts', 'audit_log', 'report_cache', 'whatsapp_outreach'],
         'cleaning'     => ['cleaning_records', 'maid_assignments', 'checklist_submissions'],
         'inventory'    => ['inventar_apartamente'],
         'reservations' => ['reservation_status', 'reservation_status_log'],
@@ -28,8 +28,9 @@ final class HealthCheck
 
     /** Integration configs ported in Stage 2 (copied from the legacy apps, never symlinked). */
     public const INTEGRATION_CONFIGS = [
-        'previo.php' => 'Previo API (din guest-app/config/previo.php)',
-        'nuki.php'   => 'Nuki API token + mapare yale',
+        'previo.php'       => 'Previo API (din guest-app/config/previo.php)',
+        'nuki.php'         => 'Nuki API token + mapare yale',
+        'checkin-sync.php' => 'Sincronizare check-in → Guest App (deblocare cod)',
     ];
 
     /** @return array{ok:int,total:int,problems:list<string>} */
