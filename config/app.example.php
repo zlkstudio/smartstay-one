@@ -40,4 +40,9 @@ return [
     // Apartments counted in the occupancy report (Rapoarte). Leave empty to use every apartment
     // that had a reservation in Previo in the last ~90 days. Parkings never count.
     'apartments' => [],
+
+    // Rapoarte · venit: prețul rezervării din Previo e împărțit pe nopți. Dacă prețul include TVA,
+    // pune cota aici (ex. 0.11) și venitul / ADR / RevPAR se afișează fără TVA, ca în Previo.
+    // Verificare: php bin/report-check.php (compară cu Hotelgroup overview).
+    'reports' => ['vat_rate' => 0],
 ];

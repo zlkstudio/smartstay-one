@@ -10,7 +10,11 @@ use One\Housekeeping\CleaningRepository;
 use One\Http\Guard;
 use One\Inventory\InventoryRepository;
 use One\Reports\MaidPayments;
+use One\Properties;
+use One\Reports\Analytics;
 use One\Reports\OperationsReport;
+use One\Reports\Period;
+use One\Stays;
 use RuntimeException;
 use Throwable;
 
@@ -37,12 +41,21 @@ final class ReportsController
     public static function overview(): never
     {
         $user = Guard::requireAccess('reports', 'view');
+        $period = Period::fromQuery($_GET);
         $report = null;
         $error = null;
+        $page = null;
         try {
             $report = OperationsReport::cached(3600);
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
+        }
+        if ($report !== null) {
+            try {
+                $page = self::overviewData($period, $report);
+            } catch (RuntimeException $e) {
+                $error = 'Istoricul Previo nu s-a putut încărca: ' . $e->getMessage();
+            }
         }
         view('pages/reports/overview', [
             'user'      => $user,
@@ -50,11 +63,104 @@ final class ReportsController
             'active'    => 'reports',
             'tab'       => 'overview',
             'report'    => $report,
+            'period'    => $period,
+            'page'      => $page,
             'error'     => $error,
             'canEdit'   => Access::can($user, 'reports', 'edit'),
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/reports.js'],
         ]);
+    }
+
+    /**
+     * Every section of Prezentare for one period, all computed by Analytics on the same stays.
+     * "Azi" keeps the operational defaults: channels and movement over the last 30 days,
+     * occupancy chart 30 nights back + 14 ahead.
+     */
+    private static function overviewData(Period $period, array $report): array
+    {
+        $today = date('Y-m-d');
+        $roster = $report['roster']['apartments'] ?? [];
+        $stays = Stays::between($period->earliest(), $period->latest());
+
+        $excluded = [];
+        foreach ($stays as $s) {
+            if (Properties::isReportExcluded($s['apartment'])) {
+                $excluded[$s['apartment']] = true;
+            }
+        }
+        $excluded = array_keys($excluded);
+        natsort($excluded);
+
+        $a = new Analytics($stays, $roster, substr($period->earliest(), 0, 4) . '-01-01', OperationsReport::vatRate());
+        $last30 = [date('Y-m-d', strtotime('-29 days')), $today];
+        $wide = $period->isToday() ? $last30 : [$period->from, $period->to];
+
+        $kpis = $a->kpis($period->from, $period->to);
+        $compare = null;
+        if ($period->compareFrom !== null) {
+            $c = $a->kpis($period->compareFrom, (string) $period->compareTo);
+            $compare = $c['covered'] && ($c['occupied'] > 0 || $c['revenue'] > 0) ? $c : null;
+        }
+        $mtd = $period->key === 'this_month' && $today >= $period->from && $today < $period->to
+            ? $a->kpis($period->from, $today) : null;
+
+        $chart = $period->isToday()
+            ? [date('Y-m-d', strtotime('-' . (OperationsReport::PAST_DAYS - 1) . ' days')), date('Y-m-d', strtotime('+' . OperationsReport::NEXT_DAYS . ' days'))]
+            : [$period->from, $period->to];
+        $series = $a->series($chart[0], $chart[1]);
+
+        $apartments = $a->apartments($period->from, $period->to);
+        $details = [];
+        foreach ($roster as $apt) {
+            $details[$apt] = $a->apartmentDetail($apt, $today);
+        }
+
+        return [
+            'kpis'       => $kpis,
+            'compare'    => $compare,
+            'mtd'        => $mtd,
+            'chart'      => ['from' => $chart[0], 'to' => $chart[1], 'bars' => self::bucket($series)],
+            'ahead'      => $period->isToday() ? $a->kpis(date('Y-m-d', strtotime('+1 day')), $chart[1]) : null,
+            'wide'       => ['from' => $wide[0], 'to' => $wide[1], 'label' => $period->isToday() ? 'ultimele 30 de zile' : $period->label],
+            'channels'   => $a->channels($wide[0], $wide[1]),
+            'apartments' => $apartments,
+            'details'    => $details,
+            'monthly'    => $a->monthly((int) date('Y'), $today),
+            'movement'   => $a->movement($wide[0], $wide[1]),
+            'guests'     => $a->guests($period->from, $period->to),
+            'unpriced'   => $a->unpricedCount(),
+            'vatRemoved' => $a->vatRemoved(),
+            'roster'     => $roster,
+            'excluded'   => array_values($excluded),
+            'today'      => $today,
+        ];
+    }
+
+    /**
+     * Chart bars: one per night up to 62 nights, otherwise one per week (Monday-based),
+     * so a whole year stays readable on a phone.
+     * @return list<array{from:string, to:string, occupied:int, total:int, pct:float, revenue:float, adr:?float, revpar:?float}>
+     */
+    private static function bucket(array $series): array
+    {
+        $daily = count($series) <= 62;
+        $out = [];
+        foreach ($series as $d) {
+            $key = $daily ? $d['date'] : date('o-W', strtotime($d['date']));
+            $b = &$out[$key];
+            $b ??= ['from' => $d['date'], 'to' => $d['date'], 'occupied' => 0, 'total' => 0, 'revenue' => 0.0];
+            $b['to'] = $d['date'];
+            $b['occupied'] += $d['occupied'];
+            $b['total'] += $d['total'];
+            $b['revenue'] += $d['revenue'];
+            unset($b);
+        }
+        return array_values(array_map(static fn(array $b): array => $b + [
+            'pct'    => $b['total'] ? $b['occupied'] * 100 / $b['total'] : 0.0,
+            'adr'    => $b['occupied'] ? $b['revenue'] / $b['occupied'] : null,
+            'revpar' => $b['total'] ? $b['revenue'] / $b['total'] : null,
+        ], $out));
     }
 
     public static function payments(): never
@@ -121,6 +227,7 @@ final class ReportsController
         Guard::requireCsrf();
         try {
             OperationsReport::cached(0, true);
+            Stays::year((int) date('Y'), true);
         } catch (RuntimeException $e) {
             json_response(['ok' => false, 'error' => $e->getMessage()], 502);
         }

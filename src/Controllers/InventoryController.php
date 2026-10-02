@@ -69,7 +69,7 @@ final class InventoryController
         $out = [];
         foreach (Stays::dayStatus($stays, date('Y-m-d')) as $apartment => $s) {
             $out[$apartment] = [
-                'checkIn'  => $s['checkIn'] ? ['time' => $s['checkIn']['checkInTime'], 'guest' => $s['checkIn']['guest'], 'option' => !empty($s['checkIn']['option'])] : null,
+                'checkIn'  => $s['checkIn'] ? ['time' => $s['checkIn']['checkInTime'], 'guest' => $s['checkIn']['guest']] : null,
                 'checkOut' => $s['checkOut'] ? ['time' => $s['checkOut']['checkOutTime'], 'guest' => $s['checkOut']['guest']] : null,
                 'staying'  => $s['staying'] ? ['guest' => $s['staying']['guest'], 'until' => $s['staying']['checkOut']] : null,
             ];

@@ -24,13 +24,14 @@ final class Stays
 
     /**
      * @return list<array{id:string, apartment:string, guest:string, checkIn:string, checkInTime:string,
-     *   checkOut:string, checkOutTime:string, nights:int, guests:int, platform:string, option:bool}>
+     *   checkOut:string, checkOutTime:string, nights:int, guests:int, platform:string, option:bool,
+     *   status:string, price:float, created:string, countries:list<string>}>
      */
     public static function window(bool $fresh = false): array
     {
         $today = date('Y-m-d');
         $dir = ONE_ROOT . '/storage/cache';
-        $file = "$dir/stays-v2-$today.json"; // v2: options included
+        $file = "$dir/stays-v3-$today.json"; // v3: options + status, price, created, countries
 
         if (!$fresh && is_file($file) && time() - (int) filemtime($file) < self::TTL) {
             $cached = json_decode((string) file_get_contents($file), true);
@@ -51,6 +52,65 @@ final class Stays
 
         self::store($dir, $file, $rows);
         return $rows;
+    }
+
+    /**
+     * Every stay touching calendar year $year: check-ins from 60 days before 1 January to 31 December.
+     * Fetched from Previo in quarterly chunks (one big request times out), cached in
+     * storage/cache/history-{year}.json — 1 hour for the current year, 24 hours for past years.
+     * @return list<array> same shape as window()
+     * @throws \RuntimeException when Previo is unreachable and nothing is cached
+     */
+    public static function year(int $year, bool $fresh = false): array
+    {
+        $dir = ONE_ROOT . '/storage/cache';
+        $file = "$dir/history-v1-$year.json";
+        $ttl = $year >= (int) date('Y') ? 3600 : 86400;
+        $cached = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+        if (!$fresh && is_array($cached) && time() - (int) filemtime($file) < $ttl) {
+            return $cached;
+        }
+
+        $rows = [];
+        try {
+            $start = new DateTimeImmutable(($year - 1) . '-11-02');
+            $end = new DateTimeImmutable("$year-12-31");
+            while ($start <= $end) {
+                $chunkEnd = min($start->modify('+3 months -1 day'), $end);
+                foreach (Previo::search($start->format('Y-m-d') . ' 00:00:00', $chunkEnd->format('Y-m-d') . ' 23:59:00', 'check-in') as $r) {
+                    $row = self::normalize($r);
+                    if ($row !== null) {
+                        $rows[$row['id'] . '|' . $row['apartment']] = $row;
+                    }
+                }
+                $start = $chunkEnd->modify('+1 day');
+            }
+        } catch (\RuntimeException $e) {
+            if (is_array($cached)) {
+                error_log("[ONE] history $year: Previo failed, serving stale cache — " . $e->getMessage());
+                return $cached;
+            }
+            throw $e;
+        }
+
+        $rows = array_values($rows);
+        self::store($dir, $file, $rows, false);
+        return $rows;
+    }
+
+    /**
+     * Stays for every year touched by [$from, $to], deduplicated.
+     * @return list<array>
+     */
+    public static function between(string $from, string $to, bool $fresh = false): array
+    {
+        $out = [];
+        for ($y = (int) substr($from, 0, 4); $y <= (int) substr($to, 0, 4); $y++) {
+            foreach (self::year($y, $fresh) as $s) {
+                $out[$s['id'] . '|' . $s['apartment']] = $s;
+            }
+        }
+        return array_values($out);
     }
 
     /**
@@ -137,10 +197,14 @@ final class Stays
             'guests'       => count(Previo::guests($r)),
             'platform'     => Previo::platform($r),
             'option'       => Previo::isOption($r),
+            'status'       => Previo::statusId($r),
+            'price'        => Previo::price($r),
+            'created'      => Previo::createdAt($r),
+            'countries'    => array_map(static fn(array $g): string => strtoupper(trim($g['countryCode'])), Previo::guests($r)),
         ];
     }
 
-    private static function store(string $dir, string $file, array $rows): void
+    private static function store(string $dir, string $file, array $rows, bool $pruneDaily = true): void
     {
         if (!is_dir($dir) && !@mkdir($dir, 0750, true)) {
             error_log('[ONE] storage/cache not writable — stays not cached');
@@ -149,6 +213,9 @@ final class Stays
         $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
         if (@file_put_contents($tmp, json_encode($rows, JSON_UNESCAPED_UNICODE)) !== false) {
             @rename($tmp, $file);
+        }
+        if (!$pruneDaily) {
+            return;
         }
         // Yesterday's snapshots are useless (and hold guest names): drop them.
         foreach (glob("$dir/stays-*.json") ?: [] as $old) {

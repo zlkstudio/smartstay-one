@@ -174,10 +174,40 @@ final class Previo
      */
     public const STATUS_OPTION = '1';
 
-    /** Unconfirmed option: kept out of occupancy, channels and the inventory status. */
+    public const STATUS_CHECKED_IN = '3';
+    public const STATUS_CHECKED_OUT = '9';
+
+    /**
+     * Option (statusId 1). On this account an option is a real booking paid cash at check-out,
+     * so it counts everywhere (occupancy, channels, revenue) — the flag is informational only.
+     */
     public static function isOption(SimpleXMLElement $r): bool
     {
         return (string) $r->status->statusId === self::STATUS_OPTION;
+    }
+
+    public static function statusId(SimpleXMLElement $r): string
+    {
+        return trim((string) $r->status->statusId);
+    }
+
+    /** Reservation price (whole stay, RON, as Previo sends it). 0 when missing. */
+    public static function price(SimpleXMLElement $r): float
+    {
+        $raw = str_replace([' ', ','], ['', '.'], trim((string) $r->price));
+        return is_numeric($raw) ? (float) $raw : 0.0;
+    }
+
+    /** Creation date (Y-m-d) when Previo sends one under any of the usual names, else ''. */
+    public static function createdAt(SimpleXMLElement $r): string
+    {
+        foreach (['created', 'createdAt', 'dateCreated', 'creationDate', 'creationTime', 'insertDate', 'dateInsert', 'bookingDate', 'reservationDate'] as $f) {
+            $v = trim((string) ($r->$f ?? ''));
+            if (preg_match('/^\d{4}-\d{2}-\d{2}/', $v)) {
+                return substr($v, 0, 10);
+            }
+        }
+        return '';
     }
 
     public static function isConfigured(): bool

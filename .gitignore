@@ -4,6 +4,7 @@ config/*.php
 
 # Runtime
 storage/logs/*
+storage/cache/
 !storage/logs/.gitkeep
 .deployed
 
