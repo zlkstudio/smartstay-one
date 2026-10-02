@@ -16,7 +16,7 @@ use One\Stays;
 final class OperationsReport
 {
     /** Bumped when the payload rules change, so an old cached payload is never served. */
-    public const KEY = 'operations_v2';
+    public const KEY = 'operations_v3'; // v3: options count as occupied (Previo rule)
     public const PAST_DAYS = 30;
     public const NEXT_DAYS = 14;
 
@@ -65,6 +65,10 @@ final class OperationsReport
         // ── Today ──
         $occupied = array_values(array_filter(Stays::occupiedOn($stays, $today), static fn(string $a): bool => isset($inRoster[$a])));
         $free = array_values(array_diff($roster, $occupied));
+        // Occupied tonight only by an unconfirmed option — shown, so nobody re-sells it blindly.
+        $confirmed = Stays::occupiedOn(array_filter($stays, static fn(array $s): bool => empty($s['option'])), $today);
+        $optionOnly = array_values(array_diff($occupied, $confirmed));
+        natsort($optionOnly);
         natsort($occupied);
         $checkIns = $checkOuts = 0;
         foreach ($stays as $s) {
@@ -107,6 +111,7 @@ final class OperationsReport
             'roster'     => ['source' => $source, 'total' => $total],
             'today'      => [
                 'occupied'  => count($occupied),
+                'options'   => array_values($optionOnly),
                 'free'      => $free,
                 'checkIns'  => $checkIns,
                 'checkOuts' => $checkOuts,

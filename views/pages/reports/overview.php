@@ -49,6 +49,9 @@ $fmtDay = static fn(string $d): string => date('d.m', strtotime($d));
         </div>
       </div>
     <?php endif; ?>
+    <?php if (!empty($t['options'])): ?>
+      <p class="muted">Ocupate doar cu opțiune neconfirmată: <?= h(implode(', ', $t['options'])) ?> (numărate ca ocupate, ca în Previo).</p>
+    <?php endif; ?>
 
     <?php $occ = $report['occupancy']; ?>
     <h2 class="section-title">Ocupare</h2>

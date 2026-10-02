@@ -12,7 +12,8 @@ use SimpleXMLElement;
  *
  * One window — check-ins from 90 days ago to 30 days ahead — serves Inventar, the Home
  * indicators and Rapoarte, so Previo is called at most once per 5 minutes for all of them.
- * Parkings and unconfirmed options (statusId 1) are dropped. The cache holds guest names, so it
+ * Parkings are dropped. Options (statusId 1) are KEPT with option=true: Previo counts them as
+ * occupied (Overview / Dashboard), and the guest may already be in the apartment. The cache holds guest names, so it
  * lives in storage/ (outside the docroot, denied by .htaccess, never deployed over).
  */
 final class Stays
@@ -23,13 +24,13 @@ final class Stays
 
     /**
      * @return list<array{id:string, apartment:string, guest:string, checkIn:string, checkInTime:string,
-     *   checkOut:string, checkOutTime:string, nights:int, guests:int, platform:string}>
+     *   checkOut:string, checkOutTime:string, nights:int, guests:int, platform:string, option:bool}>
      */
     public static function window(bool $fresh = false): array
     {
         $today = date('Y-m-d');
         $dir = ONE_ROOT . '/storage/cache';
-        $file = "$dir/stays-$today.json";
+        $file = "$dir/stays-v2-$today.json"; // v2: options included
 
         if (!$fresh && is_file($file) && time() - (int) filemtime($file) < self::TTL) {
             $cached = json_decode((string) file_get_contents($file), true);
@@ -112,7 +113,7 @@ final class Stays
     private static function normalize(SimpleXMLElement $r): ?array
     {
         $apartment = Previo::apartment($r);
-        if ($apartment === '' || Properties::isParking($apartment) || Previo::isOption($r)) {
+        if ($apartment === '' || Properties::isParking($apartment)) {
             return null;
         }
         $from = (string) $r->term->from;
@@ -135,6 +136,7 @@ final class Stays
             'nights'       => max(0, (int) $nights),
             'guests'       => count(Previo::guests($r)),
             'platform'     => Previo::platform($r),
+            'option'       => Previo::isOption($r),
         ];
     }
 
