@@ -305,7 +305,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 ---
 
 ### 8.1 Clean-up 1.2.1
-- **Logo** PNG (`assets/img/logo.png` + `logo-dark.png` pentru tema închisă), helper `logo()`. **Iconițe PWA** noi (any + maskable + apple-touch), manifest cu `?v=2`, SW `one-shell-v2`.
+- **Logo** PNG (`assets/img/logo.png` + `logo-dark.png` pentru tema închisă), helper `logo()`. **Iconițe PWA** noi (any + maskable + apple-touch), manifest cu `?v=3`, SW `one-shell-v3`.
   Pe iPhone iconița de pe ecran se schimbă doar după ștergere + reinstalare din Safari.
 - **Acasă**: fără „Stare sistem". Donut „libere la noapte" + ocupate / check-in / check-out + lista apartamentelor libere.
   **Setări** (stare sistem, Yale Nuki) doar pe desktop (≥ 900px): rotița din bara de sus și linkul din Contul meu.

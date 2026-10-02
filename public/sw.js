@@ -4,7 +4,7 @@
    Offline navigation → /offline.html. */
 'use strict';
 
-const CACHE = 'one-shell-v2';
+const CACHE = 'one-shell-v3';
 const PRECACHE = [
   '/offline.html',
   '/assets/fonts/jost-latin-400-normal.woff2',
