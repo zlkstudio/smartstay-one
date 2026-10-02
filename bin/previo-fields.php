@@ -7,6 +7,8 @@ declare(strict_types=1);
 // how to detect cancellations and booking channels, and whether revenue is available.
 //
 // Usage: php bin/previo-fields.php [days back, default 30]
+//        php bin/previo-fields.php --status [days back]   statusId breakdown: count, 3 example resIds,
+//                                                         price min/avg/max — no guest data
 
 if (PHP_SAPI !== 'cli') {
     exit(1);
@@ -15,7 +17,9 @@ require dirname(__DIR__) . '/src/bootstrap.php';
 
 use One\Integrations\Previo;
 
-$days = max(1, min(120, (int) ($argv[1] ?? 30)));
+$args = array_values(array_filter(array_slice($argv, 1), static fn(string $a): bool => $a !== '--status'));
+$statusMode = in_array('--status', $argv, true);
+$days = max(1, min(120, (int) ($args[0] ?? 30)));
 $from = date('Y-m-d', strtotime("-$days days"));
 $to = date('Y-m-d');
 
@@ -24,6 +28,36 @@ try {
 } catch (Throwable $e) {
     fwrite(STDERR, '✖ ' . $e->getMessage() . "\n");
     exit(1);
+}
+
+if ($statusMode) {
+    $today = date('Y-m-d');
+    $groups = [];
+    foreach ($reservations as $r) {
+        $id = (string) $r->status->statusId;
+        $g = &$groups[$id];
+        $g ??= ['count' => 0, 'examples' => [], 'prices' => [], 'past' => 0, 'parking' => 0, 'option' => 0];
+        $g['count']++;
+        if (count($g['examples']) < 3) {
+            $g['examples'][] = (string) $r->resId;
+        }
+        $g['prices'][] = (float) str_replace(',', '.', (string) $r->price);
+        $g['past'] += substr((string) $r->term->to, 0, 10) <= $today ? 1 : 0;
+        $g['parking'] += One\Properties::isParking(Previo::apartment($r)) ? 1 : 0;
+        $g['option'] += isset($r->status->optionExpiration) ? 1 : 0;
+        unset($g);
+    }
+    ksort($groups);
+    echo "\nPrevio · statusId pentru " . count($reservations) . " rezervări cu check-in între $from și $to\n\n";
+    foreach ($groups as $id => $g) {
+        $p = $g['prices'];
+        printf("  statusId %-3s %4d rez. · %3d plecate · %3d parcări · %d cu optionExpiration\n", $id, $g['count'], $g['past'], $g['parking'], $g['option']);
+        printf("      preț min %s · medie %s · max %s · exemple resId: %s\n",
+            number_format(min($p), 2, '.', ''), number_format(array_sum($p) / count($p), 2, '.', ''),
+            number_format(max($p), 2, '.', ''), implode(', ', $g['examples']));
+    }
+    echo "\nDeschide în Previo câte un resId din fiecare grup și notează ce status are (confirmată, anulată, opțiune…).\n\n";
+    exit(0);
 }
 
 $showValues = '/(status|state|cancel|storn|source|channel|partner|agen|operator|currency|type)/i';
