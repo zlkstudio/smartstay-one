@@ -130,7 +130,7 @@ final class ReservationFeed
                         'waPhone'   => $phone !== '' ? Properties::whatsappPhone($phone) : '',
                         'isRo'      => Properties::isRomanianPhone($phone),
                         'checkOut'  => substr((string) $r->term->to, 0, 10),
-                        'platform'  => self::platform($r),
+                        'platform'  => Previo::platform($r),
                     ];
                 }
                 usort($rows, static fn(array $a, array $b): int => strnatcmp($a['apartment'], $b['apartment']));
@@ -253,33 +253,5 @@ final class ReservationFeed
             $keep[] = $line;
         }
         return implode("\n", $keep);
-    }
-
-    /** booking_com | airbnb | expedia | travelminit | google (direct / unknown). */
-    private static function platform(SimpleXMLElement $r): string
-    {
-        $fields = [];
-        foreach (['source', 'channel', 'partner', 'partnerName', 'agentName', 'agency', 'tourOperator', 'channelManager'] as $f) {
-            if (isset($r->$f)) {
-                $fields[] = (string) $r->$f;
-                if (isset($r->$f->name)) {
-                    $fields[] = (string) $r->$f->name;
-                }
-            }
-        }
-        foreach (['note', 'gNote', 'internalNote', 'systemNote'] as $f) {
-            if (isset($r->$f)) {
-                $fields[] = (string) $r->$f;
-            }
-        }
-        $haystack = mb_strtolower(implode(' ', $fields));
-        return match (true) {
-            str_contains($haystack, 'airbnb')                                 => 'airbnb',
-            str_contains($haystack, 'expedia')                                => 'expedia',
-            str_contains($haystack, 'szallas'), str_contains($haystack, 'travelminit') => 'travelminit',
-            str_contains($haystack, 'booking.com'), str_contains($haystack, 'booking com'),
-            str_contains($haystack, 'partener booking')                       => 'booking_com',
-            default                                                           => 'google',
-        };
     }
 }

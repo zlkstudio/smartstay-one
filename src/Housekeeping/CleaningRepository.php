@@ -108,8 +108,11 @@ final class CleaningRepository
 
     // ── Cleaning records (what the maid is paid for) ─────────────────────
 
-    /** Deduplicated on (maid, apartment, date, type): a check-out and an intermediate on the same day both count. */
-    public static function recordCleaning(string $maid, string $apartment, string $date, string $type = 'checkout', ?string $reservationId = null): void
+    /**
+     * Deduplicated on (maid, apartment, date, type): a check-out and an intermediate on the same day both count.
+     * @return bool true when a new record was written, false when it already existed
+     */
+    public static function recordCleaning(string $maid, string $apartment, string $date, string $type = 'checkout', ?string $reservationId = null): bool
     {
         $pdo = self::db();
         $exists = $pdo->prepare(
@@ -117,12 +120,32 @@ final class CleaningRepository
         );
         $exists->execute([$maid, $apartment, $date, $type]);
         if ($exists->fetchColumn() !== false) {
-            return;
+            return false;
         }
         $pdo->prepare(
             "INSERT INTO cleaning_records (maid_name, apartment_number, cleaning_date, cleaning_type, reservation_id, status)
              VALUES (?, ?, ?, ?, ?, 'completed')"
         )->execute([$maid, $apartment, $date, $type, $reservationId]);
+        return true;
+    }
+
+    /** One payment line (for the report's delete action). @return array<string,mixed>|null */
+    public static function findRecord(int $id): ?array
+    {
+        $stmt = self::db()->prepare(
+            'SELECT id, maid_name, apartment_number, cleaning_date, cleaning_type FROM cleaning_records WHERE id = ?'
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row === false ? null : $row;
+    }
+
+    /** Removes a payment line only. Checklist history (checklist_submissions) stays untouched. */
+    public static function deleteRecord(int $id): bool
+    {
+        $stmt = self::db()->prepare('DELETE FROM cleaning_records WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
     }
 
     /** @return list<string> apartments with an intermediate cleaning on that day */

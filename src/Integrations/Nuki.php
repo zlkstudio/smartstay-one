@@ -9,7 +9,7 @@ use RuntimeException;
  * Nuki Web API — keypad codes, copied from reservations/api/send_nuki_code.php.
  *
  * config/nuki.php (gitignored, PROTECTED_CONFIGS):
- *   ['api_token' => '…', 'api_base' => 'https://api.nuki.io', 'smartlocks' => ['99' => '18043849972', …]]
+ *   ['api_token' => '…', 'api_base' => 'https://api.nuki.io', 'smartlocks' => ['99' => '<smartlock id>', …]]
  *
  * Kept from the legacy fixes:
  *  - PUT /smartlock/{id}/auth (per lock — proven 204 on all locks, incl. Ultra),

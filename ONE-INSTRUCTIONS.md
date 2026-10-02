@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
-> **Ultima actualizare**: 2 octombrie 2026 (11:25)
-> **Versiune**: 1.1.0-stage2 (Rezervări + Housekeeping portate în ONE)
+> **Ultima actualizare**: 2 octombrie 2026 (12:00)
+> **Versiune**: 1.2.0-stage3 (Inventar + Rapoarte + plata menajerelor)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -21,7 +21,13 @@
 🔲 Conturi menajere (rol Menajeră + numele din listă)
 🔲 Rotit tokenul Nuki (a apărut în clar într-o sesiune de lucru pe 02.10.2026) — în ONE, reservations și guest-app
 🔲 Mac Mini: `git fetch && git reset --hard origin/main` (commit local `a178b0a` = același conținut, alt hash)
-➡️ Următorul pas: **Etapa 3** — Inventar + Rapoarte (plata menajerelor, cron `report_cache`)
+✅ Etapa 3 scrisă și testată local (MariaDB + Previo simulat) — patch `0003-etapa-3`
+🔲 Repo-ul `smartstay-one` e **PUBLIC** pe GitHub → Settings → General → Danger Zone → *Change visibility* → Private (fără secrete în el, dar are logica internă)
+🔲 `git am` patch-ul Etapei 3 → push → `./deploy-one.sh production` → doctor arată **1.2.0-stage3**
+🔲 Cron orar în cPanel pentru `bin/reports-cron.php` (§6.5)
+🔲 `php bin/previo-fields.php` → confirmă câmpul de status (anulări) și de preț (venituri, Etapa 4)
+🔲 Verificat raportul de plată ONE vs. raportul vechi pe săptămâna trecută (aceleași totaluri)
+➡️ Următorul pas: **Etapa 4** — Setări apartamente (tarife, praguri stoc, checklist, listă apartamente în UI), venituri din Previo, migrare conturi reale
 
 ---
 
@@ -35,9 +41,9 @@ Aplicațiile vechi rămân online tot timpul tranziției și lucrează pe acelea
 | Etapă | Conținut | Stare |
 |---|---|---|
 | **1 · Fundația** | login, 4 roluri, middleware, sesiuni 90 zile, PWA + instalare, utilizatori, stare sistem | ✅ live |
-| **2 · Rezervări + Housekeeping** | portare 1:1, Previo + Nuki în `src/Integrations/` | ✅ gata de deploy |
-| 3 · Inventar + Rapoarte | + raport plată menajere + cron `report_cache` | următoarea |
-| 4 · Setări apartamente, migrare conturi reale | regulile din `Properties.php` / `Checklist.php` → UI | |
+| **2 · Rezervări + Housekeeping** | portare 1:1, Previo + Nuki în `src/Integrations/` | ✅ live |
+| **3 · Inventar + Rapoarte** | stoc + Necesar, ocupare, canale, plata menajerelor, cron `report_cache`, indicatori pe Acasă | ✅ gata de deploy |
+| 4 · Setări apartamente, venituri, migrare conturi reale | regulile din `Properties.php` / `Checklist.php` / `Rates.php` / `Stock.php` → UI | următoarea |
 
 ---
 
@@ -47,24 +53,27 @@ Aplicațiile vechi rămân online tot timpul tranziției și lucrează pe acelea
 smartstay-one/
 ├── public/                         ← DOCUMENT ROOT
 │   ├── index.php                   front controller: headere securitate, TOATE rutele
-│   └── assets/css/ app.css · modules.css (Etapa 2)
-│       assets/js/  app.js · reservations.js · housekeeping.js · checklist.js
+│   └── assets/css/ app.css · modules.css (toate modulele)
+│       assets/js/  app.js · reservations.js · housekeeping.js · checklist.js · inventory.js · reports.js · home.js
 ├── src/
 │   ├── Auth/ Http/ Db/ Users/ System/ Audit.php     (Etapa 1)
 │   ├── Properties.php              parcări (nu sunt apartamente), telefon RO / WhatsApp
+│   ├── Stays.php                   șederi din Previo (−90 / +30 zile), cache 5 min în storage/cache — Inventar, Acasă, Rapoarte
 │   ├── Integrations/
 │   │   ├── Previo.php              searchReservations (XML), fallback contactPerson → guest
 │   │   ├── Nuki.php                PUT /smartlock/{id}/auth, 409 = succes, log storage/logs/nuki.log
 │   │   ├── NukiCode.php            codul din telefon (identic cu Guest App)
 │   │   └── GuestAppSync.php        toggle Check-in → admin_mark_checkin.php (deblochează codul)
 │   ├── Reservations/  ReservationFeed · StatusRepository · OutreachRepository
-│   ├── Housekeeping/  HousekeepingFeed · CleaningRepository · Checklist · ChecklistMailer
-│   └── Controllers/   Auth, Page, Users, Reservations, Housekeeping
-├── views/pages/ reservations/index.php · housekeeping/{index,maid,checklist}.php
+│   ├── Housekeeping/  HousekeepingFeed · CleaningRepository · Checklist · ChecklistMailer · Rates (tarife plată)
+│   ├── Inventory/     InventoryRepository · Stock (praguri lenjerii)
+│   ├── Reports/       MaidPayments · OperationsReport · ReportCache
+│   └── Controllers/   Auth, Page, Users, Reservations, Housekeeping, Inventory, Reports
+├── views/pages/ reservations/ · housekeeping/ · inventory/index.php · reports/{overview,payments}.php
 ├── sql/ 001_one_schema.sql · 002_stage2.sql (whatsapp_outreach)
-├── bin/ migrate.php  create-user.php  doctor.php
+├── bin/ migrate.php  create-user.php  doctor.php  reports-cron.php  previo-fields.php
 ├── config/                         *.example.php în git; *.php reale DOAR pe server
-├── storage/logs/                   app.log, nuki.log
+├── storage/logs/ · storage/cache/  app.log, nuki.log, cron.log · stays-AZI.json (nume oaspeți — nu iese din storage)
 └── deploy/deploy-one.sh
 ```
 
@@ -79,7 +88,7 @@ smartstay-one/
 | `smartconcept_one` | `database-one.php` | users, permissions, sessions, login_attempts, audit_log, report_cache, **whatsapp_outreach** |
 | `smartconcept_reservations` | `database-reservations.php` | citește/scrie `reservation_status` + `reservation_status_log` (aceleași rânduri ca app-ul vechi) |
 | `smartconcept_cleaning` | `database-cleaning.php` | `maid_assignments`, `cleaning_records`, `checklist_submissions` (aceleași ca app-ul vechi) |
-| `smartconcept_inventoryStay` | `database-inventory.php` | Etapa 3 |
+| `smartconcept_inventoryStay` | `database-inventory.php` | `inventar_apartamente`: doar cele 5 contoare + `necesar`. Coloanele Previo vechi (`check_in_date`, `guest_name`…) nu sunt atinse |
 
 `maid_name` rămâne numele afișat („Ioana") — exact cum scrie app-ul vechi, ca rapoartele de plată să meargă în paralel.
 
@@ -186,6 +195,32 @@ cd ~/one.smartstay.ro && php bin/doctor.php
 
 ---
 
+### 6.5 Etapa 3 — o singură dată pe server
+```bash
+# Mac: aplică patch-ul și urcă-l
+cd /Users/romeo/Projects/SmartStay/smartstay-one && git pull
+git am ~/Downloads/0003-etapa-3-inventar-rapoarte.patch && git push origin main
+git log origin/main --oneline -1               # „Etapa 3: Inventar + Rapoarte…"
+
+# Server
+ssh smartstay
+./deploy-one.sh production                      # nicio migrare nouă; doctor → 1.2.0-stage3
+cd ~/one.smartstay.ro
+php bin/reports-cron.php                        # primul calcul (✔ operations: …)
+php bin/previo-fields.php                       # ce câmpuri dă Previo (doar căi, fără valori)
+```
+Nu e nevoie de config nou. Opțional în `config/app.php`: `'apartments' => ['5','33','40',…]` — lista exactă pentru ocupare
+(fără ea, ONE numără apartamentele cu rezervări în ultimele ~90 de zile).
+
+**Cron** — cPanel → Cron Jobs → *Once Per Hour*, minutul 7:
+```
+7 * * * * /usr/local/bin/php /home/smartconcept/one.smartstay.ro/bin/reports-cron.php >> /home/smartconcept/one.smartstay.ro/storage/logs/cron.log 2>&1
+```
+Verificare: `tail -3 ~/one.smartstay.ro/storage/logs/cron.log` și Setări → Rapoarte („Cronul orar rulează normal").
+Fără cron rapoartele merg oricum (se calculează la deschidere, max. o dată pe oră), doar mai lent.
+
+---
+
 ## 7. Deploy — rutina
 
 ```bash
@@ -202,7 +237,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 
 ---
 
-## 8. Etapa 2 — ce s-a portat
+## 8. Ce s-a portat
 
 ### Rezervări (`/reservations`, `/reservations/tomorrow`, `/reservations/whatsapp`, `/reservations/link`)
 - **Astăzi / Mâine**: carduri cu nume, telefon (copiere), apartament, check-in/out, parcare atașată
@@ -233,6 +268,26 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 - Dacă e-mailul checklist-ului nu pleacă, trimiterea rămâne salvată și menajera vede mesajul (vechiul arunca eroare și consuma a doua trecere).
 - Marcajele WhatsApp vechi (`reservations/data/whatsapp_contacted.json`) nu se importă.
 
+### Inventar (`/inventory`) — Etapa 3
+- Carduri din `inventar_apartamente` (instant), apoi statusul de azi din Previo (Check-out / Check-in cu oră + nume, „Oaspete cazat").
+- Sortare: libere / cu check-in sau check-out azi primele, după lenjerii crescător (critice sus) · cazați după · Boxa ultima.
+- Filtre Toate / Pe roșu / Check-in azi / Check-out azi + căutare după apartament sau oaspete. `/inventory?filter=critical` deschide direct roșii.
+- +/− **atomic** (un singur `UPDATE`, nu citește-apoi-scrie) — două telefoane care apasă simultan nu mai pierd apăsări. Afișare optimistă, cereri în coadă per articol.
+- Praguri lenjerii (`src/Inventory/Stock.php`): studio ≤1 roșu · 2 galben · ≥3 verde; 187, 594 ≤3 / 4 / ≥5; Boxa <5 / 5–12 / >12.
+- „Necesar" se salvează singur la 0,8 s după ultima tastă și la ieșirea din câmp.
+- Fiecare modificare intră în `audit_log` (`inventory.adjust`, `inventory.note`); cardul arată „Modificat de X · ora".
+
+### Rapoarte (`/reports`, `/reports/payments`) — Etapa 3
+- **Prezentare**: azi (libere la noapte / ocupate / check-in / check-out + lista libere), ocupare pe nopți (30 în urmă, 14 rezervate înainte), canale pe 30 de zile (donut + rezervări + nopți). Cache `report_cache` (cheia `operations`), recalculat de cron sau de butonul ↻ (doar edit).
+- **Plata menajerelor**: implicit săptămâna trecută (L–D), plus săptămâna/luna curentă/trecută și interval liber (max. 93 zile). Tarif recalculat la fiecare afișare din `src/Housekeeping/Rates.php`; „✓✓ Checklist x2" doar aici; intermediare cu chip violet. Edit: adăugare manuală (menajeră, apartament, dată, tip) și ștergere — ambele în `audit_log`. „Copiază rezumatul" per menajeră (pentru WhatsApp).
+- **Acasă**: cardul „Azi" (din același cache, max. 15 min) + „N apartamente cu lenjerii pe roșu" pentru cine are Inventar.
+
+### Diferențe intenționate (Etapa 3)
+- Apartamentele fără tarif apar marcate **„tarif implicit"** + avertizare sus (vechiul le plătea tăcut cu 60 RON). Totalul rămâne identic cu raportul vechi.
+- ONE nu mai scrie coloanele Previo în `inventar_apartamente`; le citește live (cache 5 min). Butonul „Sync Previo" din aplicația veche rămâne pentru ea.
+- Trimiterea raportului pe e-mail nu s-a portat (înlocuită de „Copiază rezumatul"). Se poate adăuga dacă e nevoie.
+- Veniturile nu apar încă: câmpul de preț din Previo trebuie confirmat cu `bin/previo-fields.php`. Rezervările anulate nu sunt filtrate (la fel ca în Etapa 2) — de verificat cu același script.
+
 ---
 
 ## 9. Troubleshooting
@@ -253,6 +308,12 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 | Checklist: „Fotografia X lipsește" | `upload_max_filesize` / `post_max_size` prea mici în cPanel (min. 16M) |
 | E-mail checklist nu ajunge | `grep "checklist mail" storage/logs/app.log`; verifică `from` în `app.php` |
 | 403 pe tot site-ul | `~/one.smartstay.ro/.htaccess` cu „Require all denied" → șterge-l |
+| Inventar: „Statusul rezervărilor nu s-a putut încărca" | Previo nu răspunde; contoarele merg. Detalii în `app.log` |
+| Inventar: lipsește un apartament (ex. 33) | Nu e în `inventar_apartamente` → `INSERT INTO inventar_apartamente (apartament) VALUES ('33')` |
+| Doctor: „lipsesc coloanele inventar_apartamente.…" | Baza Inventar e pre-v3 → rulează `database_migration.sql` din aplicația veche |
+| Rapoarte: avertizare „Fără tarif definit: …" | Adaugă apartamentul în `STUDIOS` / `APARTMENTS` din `src/Housekeeping/Rates.php` |
+| Rapoarte: ocupare ciudată (prea mare/mică) | Setează lista exactă `apartments` în `config/app.php` |
+| Setări: „Cronul orar … nu rulează" | Cron-ul lipsește din cPanel sau dă eroare → `tail storage/logs/cron.log` |
 | Eroare 500 | `tail -50 ~/one.smartstay.ro/storage/logs/app.log` |
 
 ---
@@ -270,9 +331,10 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 
 **Repo**: `zlkstudio/smartstay-one` · **Server**: `smartconcept@s11993` · **Țintă**: `~/one.smartstay.ro` (docroot `/public`)
 **Rute**: `/`, `/reservations[/tomorrow|/whatsapp|/link]`, `/housekeeping[/intermediate|/checklist/{apt}]`,
-`/inventory`, `/reports`, `/users`, `/settings`, `/account`
+`/inventory`, `/reports[/payments]`, `/users`, `/settings`, `/account`
 **API**: `GET /api/reservations/{list,recent,whatsapp}` · `POST /api/reservations/{status,nuki,whatsapp}` ·
-`GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,unassign,intermediate,checklist}`
-**Design**: Jost, `#2563eb` / `#1a6fce` (Rezervări), violet `#7c3aed` (Housekeeping), radius 16 / 12, dark mode.
+`GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,unassign,intermediate,checklist}` ·
+`GET /api/inventory/occupancy` · `POST /api/inventory/{adjust,note}` · `GET /api/reports/today` · `POST /api/reports/{refresh,cleaning,cleaning/delete}`
+**Design**: Jost, `#2563eb` / `#1a6fce` (Rezervări), violet `#7c3aed` (Housekeeping), indigo `#4f46e5` (Inventar), teal `#0d9488` (Rapoarte), radius 16 / 12, dark mode.
 
 *Document de continuitate pentru chat-uri viitoare. Update la fiecare etapă.*

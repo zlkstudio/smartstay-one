@@ -19,6 +19,16 @@ final class HealthCheck
         'reservations' => ['reservation_status', 'reservation_status_log'],
     ];
 
+    /** Columns ONE writes to in legacy tables (Inventory v3 added fete_perne_mari + necesar). */
+    public const EXPECTED_COLUMNS = [
+        'inventory' => [
+            'inventar_apartamente' => ['apartament', 'lenjerie', 'fete_perne_mari', 'prosoape_mari', 'prosoape_mici', 'prosoape_picioare', 'necesar'],
+        ],
+    ];
+
+    /** The hourly reports cron is considered stopped after this many hours without a run. */
+    public const REPORTS_STALE_HOURS = 3;
+
     public const DB_LABELS = [
         'one'          => 'SmartStay ONE',
         'cleaning'     => 'Housekeeping',
@@ -72,6 +82,7 @@ final class HealthCheck
             'integrations' => $integrations,
             'environment'  => self::environment(),
             'sessions'     => self::sessionStats($databases['one']['status'] === 'ok'),
+            'reports'      => self::reports($databases['one']['status'] === 'ok'),
         ];
     }
 
@@ -105,9 +116,29 @@ final class HealthCheck
                 }
             }
 
+            $missingColumns = [];
+            foreach (self::EXPECTED_COLUMNS[$name] ?? [] as $table => $columns) {
+                if (in_array($table, $missing, true)) {
+                    continue;
+                }
+                $cols = $pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?');
+                $cols->execute([$dbName, $table]);
+                $have = $cols->fetchAll(\PDO::FETCH_COLUMN);
+                foreach (array_diff($columns, $have) as $column) {
+                    $missingColumns[] = "$table.$column";
+                }
+            }
+
+            $message = 'conectat';
+            if ($missing) {
+                $message = 'lipsesc tabelele: ' . implode(', ', $missing);
+            } elseif ($missingColumns) {
+                $message = 'lipsesc coloanele: ' . implode(', ', $missingColumns);
+            }
+
             return [
-                'status'   => $missing ? 'warn' : 'ok',
-                'message'  => $missing ? 'lipsesc tabelele: ' . implode(', ', $missing) : 'conectat',
+                'status'   => ($missing || $missingColumns) ? 'warn' : 'ok',
+                'message'  => $message,
                 'database' => $dbName,
                 'tables'   => $tables,
                 'missing'  => $missing,
@@ -173,5 +204,16 @@ final class HealthCheck
             'active' => (int) $pdo->query('SELECT COUNT(*) FROM sessions WHERE expires_at > UTC_TIMESTAMP()')->fetchColumn(),
             'users'  => (int) $pdo->query('SELECT COUNT(*) FROM users WHERE active = 1')->fetchColumn(),
         ];
+    }
+
+    /** @return array{last:?string, stale:bool}|null */
+    private static function reports(bool $oneOk): ?array
+    {
+        if (!$oneOk) {
+            return null;
+        }
+        $last = \One\Reports\ReportCache::lastComputed(\One\Reports\OperationsReport::KEY);
+        $stale = $last === null || strtotime($last . ' UTC') < time() - self::REPORTS_STALE_HOURS * 3600;
+        return ['last' => $last, 'stale' => $stale];
     }
 }

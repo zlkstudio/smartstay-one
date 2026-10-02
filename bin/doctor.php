@@ -46,9 +46,19 @@ if ($report['maids']['unmatched']) {
     echo '  ⚠️  necunoscute în config: ' . implode(', ', $report['maids']['unmatched']) . "\n";
 }
 
-echo "\nIntegrări (Etapa 2)\n";
+echo "\nIntegrări\n";
 foreach ($report['integrations'] as $int) {
     printf("  %s %-20s %s\n", $int['present'] ? '✅' : '·', $int['file'], $int['label']);
+}
+
+echo "\nRapoarte (cron orar bin/reports-cron.php)\n";
+if ($report['reports'] === null) {
+    echo "  · baza ONE indisponibilă\n";
+} elseif ($report['reports']['last'] === null) {
+    echo "  ⚠️  niciun calcul încă — rulează: php bin/reports-cron.php, apoi pune-l în cPanel → Cron Jobs\n";
+} else {
+    printf("  %s ultimul calcul: %s%s\n", $report['reports']['stale'] ? '⚠️ ' : '✅', local_time($report['reports']['last']),
+        $report['reports']['stale'] ? ' — cronul pare oprit' : '');
 }
 
 echo "\nServer\n";

@@ -5,7 +5,9 @@ namespace One\Controllers;
 
 use One\Auth\Access;
 use One\Http\Guard;
+use One\Inventory\InventoryRepository;
 use One\System\HealthCheck;
+use Throwable;
 
 final class PageController
 {
@@ -21,26 +23,29 @@ final class PageController
             static fn(string $m): bool => Access::can($user, $m)
         ));
 
-        view('pages/home', [
-            'user'      => $user,
-            'pageTitle' => 'Acasă',
-            'active'    => 'home',
-            'modules'   => $modules,
-            'health'    => $user['role'] === 'admin' ? HealthCheck::summary() : null,
-        ]);
-    }
+        // Inventory-only users get the critical-stock line server-side (one fast query);
+        // users with Rapoarte get the full indicators from /api/reports/today (home.js).
+        $canReports = Access::can($user, 'reports');
+        $critical = null;
+        if (!$canReports && Access::can($user, 'inventory')) {
+            try {
+                $critical = InventoryRepository::critical();
+            } catch (Throwable $e) {
+                error_log('[ONE] home critical stock: ' . $e->getMessage());
+            }
+        }
 
-    /** Stage 1: module shells. Access is enforced exactly as it will be in Stage 2. */
-    public static function module(string $module): never
-    {
-        $user = Guard::requireAccess($module, 'view');
-        view('pages/module', [
-            'user'      => $user,
-            'pageTitle' => Access::LABELS[$module],
-            'active'    => $module,
-            'module'    => $module,
-            'level'     => Access::level($user, $module),
-            'legacyUrl' => $user['role'] === 'maid' ? null : (config('legacy_urls', [])[$module] ?? null),
+        view('pages/home', [
+            'user'       => $user,
+            'pageTitle'  => 'Acasă',
+            'active'     => 'home',
+            'modules'    => $modules,
+            'health'     => $user['role'] === 'admin' ? HealthCheck::summary() : null,
+            'canReports' => $canReports,
+            'canInventory' => Access::can($user, 'inventory'),
+            'critical'   => $critical,
+            'styles'     => ['assets/css/modules.css'],
+            'scripts'    => $canReports ? ['assets/js/home.js'] : [],
         ]);
     }
 

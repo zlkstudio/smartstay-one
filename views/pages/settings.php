@@ -59,10 +59,21 @@ $statusBadge = ['ok' => 'badge-success', 'warn' => 'badge-warning', 'error' => '
       <div class="list-item">
         <span class="dot <?= $int['present'] ? 'dot-ok' : 'dot-warn' ?>"></span>
         <span class="grow"><span class="list-title"><?= h($int['label']) ?></span><br><span class="list-sub"><?= h($int['file']) ?></span></span>
-        <span class="badge <?= $int['present'] ? 'badge-success' : 'badge-warning' ?>"><?= $int['present'] ? 'Prezent' : 'Etapa 2' ?></span>
+        <span class="badge <?= $int['present'] ? 'badge-success' : 'badge-warning' ?>"><?= $int['present'] ? 'Prezent' : 'Lipsește' ?></span>
       </div>
     <?php endforeach; ?>
   </div>
+
+  <?php if ($report['reports'] !== null): ?>
+    <h2 class="section-title">Rapoarte</h2>
+    <div class="card row">
+      <span class="dot <?= $report['reports']['stale'] ? 'dot-warn' : 'dot-ok' ?>"></span>
+      <span class="grow">
+        <span class="list-title"><?= $report['reports']['last'] ? 'Ultimul calcul: ' . h(local_time($report['reports']['last'])) : 'Niciun calcul încă' ?></span><br>
+        <span class="list-sub"><?= $report['reports']['stale'] ? 'Cronul orar bin/reports-cron.php nu rulează — vezi ONE-INSTRUCTIONS §6.5' : 'Cronul orar rulează normal' ?></span>
+      </span>
+    </div>
+  <?php endif; ?>
 
   <h2 class="section-title">Server</h2>
   <div class="card">

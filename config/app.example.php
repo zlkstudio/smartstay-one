@@ -37,10 +37,7 @@ return [
         'from_name' => 'SmartStay Cleaning System',
     ],
 
-    // Legacy apps, linked from module pages during the transition.
-    'legacy_urls' => [
-        'reservations' => 'https://smartstay.ro/reservations/today.php',
-        'housekeeping' => 'https://smartstay.ro/housekeeping/public/index.php',
-        'inventory'    => 'https://smartstay.ro/inventory/',
-    ],
+    // Apartments counted in the occupancy report (Rapoarte). Leave empty to use every apartment
+    // that had a reservation in Previo in the last ~90 days. Parkings never count.
+    'apartments' => [],
 ];

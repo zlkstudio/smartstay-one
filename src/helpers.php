@@ -79,7 +79,7 @@ function csp_nonce(): string
 
 /**
  * Normalizes a Romanian/international phone to digits with country code.
- * 0784 429 677 → 40784429677 · +40 784… → 40784… · 0040… → 40…
+ * 0712 345 678 → 40712345678 · +40 712… → 40712… · 0040… → 40…
  */
 function normalize_phone(string $raw): string
 {

@@ -1,12 +1,15 @@
 <?php
-/** @var array $user @var list<string> $modules @var ?array $health */
+/**
+ * @var array $user @var list<string> $modules @var ?array $health
+ * @var bool $canReports @var bool $canInventory @var ?list<string> $critical
+ */
 use One\Auth\Access;
 
 $descriptions = [
     'reservations' => 'Check-in azi și mâine, taxe, Nuki, WhatsApp',
     'housekeeping' => 'Check-out, intermediare, checklist',
     'inventory'    => 'Lenjerii, prosoape, necesar',
-    'reports'      => 'Ocupare, canale, venituri',
+    'reports'      => 'Ocupare, canale, plata menajerelor',
 ];
 $firstName = explode(' ', trim($user['name']))[0];
 ?>
@@ -26,6 +29,35 @@ $firstName = explode(' ', trim($user['name']))[0];
       <span class="grow">
         <span class="list-title">Stare sistem · <?= (int) $health['ok'] ?>/<?= (int) $health['total'] ?> baze în regulă</span><br>
         <span class="list-sub"><?= $health['problems'] ? h($health['problems'][0]) : 'Toate conexiunile funcționează' ?></span>
+      </span>
+      <?= icon('chevron', 'icon icon-sm chev') ?>
+    </a>
+  <?php endif; ?>
+
+  <?php if ($canReports): ?>
+    <h2 class="section-title">Azi</h2>
+    <a href="/reports" class="card card-link stack-sm" data-home-today>
+      <div class="stat-grid" data-home-stats>
+        <?php foreach (['Libere la noapte', 'Ocupate', 'Check-in', 'Check-out'] as $label): ?>
+          <div class="stat"><span class="stat-value"><span class="skeleton" style="display:inline-block;width:42px;height:26px"></span></span><span class="stat-label"><?= h($label) ?></span></div>
+        <?php endforeach; ?>
+      </div>
+      <span class="list-sub" data-home-meta>Se încarcă din Previo…</span>
+    </a>
+    <?php if ($canInventory): ?>
+      <a href="/inventory?filter=critical" class="card card-link row" data-home-stock hidden>
+        <span class="dot dot-warn" data-home-stock-dot></span>
+        <span class="grow"><span class="list-title" data-home-stock-title></span><br><span class="list-sub" data-home-stock-sub></span></span>
+        <?= icon('chevron', 'icon icon-sm chev') ?>
+      </a>
+    <?php endif; ?>
+  <?php elseif ($critical !== null): ?>
+    <h2 class="section-title">Azi</h2>
+    <a href="/inventory?filter=critical" class="card card-link row">
+      <span class="dot <?= $critical ? 'dot-warn' : 'dot-ok' ?>"></span>
+      <span class="grow">
+        <span class="list-title"><?= $critical ? count($critical) . ' apartamente cu lenjerii pe roșu' : 'Stocul de lenjerii e în regulă' ?></span><br>
+        <span class="list-sub"><?= $critical ? h(implode(', ', $critical)) : 'Niciun apartament pe roșu' ?></span>
       </span>
       <?= icon('chevron', 'icon icon-sm chev') ?>
     </a>
@@ -52,8 +84,4 @@ $firstName = explode(' ', trim($user['name']))[0];
     </div>
   <?php endif; ?>
 
-  <div class="card row">
-    <span class="tile-icon"><?= icon('info') ?></span>
-    <p class="muted grow" style="font-size:14.5px">Indicatorii zilei (check-in, taxe, stoc) și rapoartele apar aici pe măsură ce modulele sunt mutate în ONE.</p>
-  </div>
 </div>

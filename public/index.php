@@ -7,7 +7,9 @@ use One\Auth\Access;
 use One\Auth\Auth;
 use One\Controllers\AuthController;
 use One\Controllers\HousekeepingController;
+use One\Controllers\InventoryController;
 use One\Controllers\PageController;
+use One\Controllers\ReportsController;
 use One\Controllers\ReservationsController;
 use One\Controllers\UsersController;
 use One\Http\Guard;
@@ -96,10 +98,19 @@ $router->get('/api/housekeeping/active-guests', static fn() => HousekeepingContr
 $router->post('/api/housekeeping/intermediate', static fn() => HousekeepingController::createIntermediate());
 $router->post('/api/housekeeping/checklist', static fn() => HousekeepingController::submitChecklist());
 
-// Modules still on the legacy apps (Etapa 3): protected shells.
-foreach (['inventory', 'reports'] as $module) {
-    $router->get('/' . $module, static fn() => PageController::module($module));
-}
+// ── Inventar (Etapa 3) ─────────────────────────────────────────────────────
+$router->get('/inventory', static fn() => InventoryController::index());
+$router->get('/api/inventory/occupancy', static fn() => InventoryController::occupancy());
+$router->post('/api/inventory/adjust', static fn() => InventoryController::adjust());
+$router->post('/api/inventory/note', static fn() => InventoryController::note());
+
+// ── Rapoarte (Etapa 3) ─────────────────────────────────────────────────────
+$router->get('/reports', static fn() => ReportsController::overview());
+$router->get('/reports/payments', static fn() => ReportsController::payments());
+$router->get('/api/reports/today', static fn() => ReportsController::today());
+$router->post('/api/reports/refresh', static fn() => ReportsController::refresh());
+$router->post('/api/reports/cleaning', static fn() => ReportsController::addCleaning());
+$router->post('/api/reports/cleaning/delete', static fn() => ReportsController::deleteCleaning());
 
 $router->get('/users', static fn() => UsersController::index());
 $router->get('/users/new', static fn() => UsersController::create());

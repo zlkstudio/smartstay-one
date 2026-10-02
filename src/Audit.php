@@ -23,6 +23,12 @@ final class Audit
         'housekeeping.assign'     => 'A alocat curățenii',
         'housekeeping.intermediate' => 'A înregistrat o curățenie intermediară',
         'housekeeping.checklist'  => 'A trimis checklist-ul',
+        // Etapa 3
+        'inventory.adjust'        => 'A modificat stocul',
+        'inventory.note'          => 'A modificat „Necesar"',
+        'report.cleaning_add'     => 'A adăugat o curățenie în raport',
+        'report.cleaning_delete'  => 'A șters o curățenie din raport',
+        'report.refresh'          => 'A recalculat rapoartele',
     ];
 
     public static function log(
@@ -64,5 +70,32 @@ final class Audit
         );
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Latest action per target (e.g. who last touched each apartment's stock).
+     * @return array<string, array{by:?string, at:string}> target_id => last change
+     */
+    public static function latestFor(string $targetType, int $days = 60): array
+    {
+        try {
+            $stmt = Database::get('one')->prepare(
+                'SELECT a.target_id, a.created_at, u.name
+                 FROM audit_log a
+                 JOIN (SELECT target_id, MAX(id) AS id FROM audit_log
+                       WHERE target_type = ? AND created_at > UTC_TIMESTAMP() - INTERVAL ? DAY
+                       GROUP BY target_id) m ON m.id = a.id
+                 LEFT JOIN users u ON u.id = a.user_id'
+            );
+            $stmt->execute([$targetType, max(1, $days)]);
+        } catch (\Throwable $e) {
+            error_log('[ONE] audit read failed: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $out[(string) $row['target_id']] = ['by' => $row['name'], 'at' => (string) $row['created_at']];
+        }
+        return $out;
     }
 }
