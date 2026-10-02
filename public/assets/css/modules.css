@@ -15,6 +15,32 @@
 .tab.is-active { background: var(--surface); color: var(--blue); box-shadow: var(--shadow); font-weight: 600; }
 .tabs-violet .tab.is-active { color: var(--violet); }
 
+/* Rezervări — segmented day switch with a sliding thumb */
+.res-nav { display: flex; align-items: stretch; gap: 10px; }
+.res-nav .icon-btn { width: 52px; height: auto; min-height: 52px; border-radius: var(--r-card); flex: none; }
+.daynav { --n: 4; position: relative; flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(var(--n), 1fr);
+  padding: 4px; border-radius: var(--r-card); background: var(--surface-2); isolation: isolate; }
+.daynav-thumb { position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n));
+  border-radius: 12px; background: var(--blue-grad); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  transform: translateX(calc(100% * var(--i, 0))); transition: transform 0.38s cubic-bezier(0.3, 1.3, 0.5, 1); }
+.daynav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0;
+  padding: 7px 4px 8px; border-radius: 12px; color: var(--text-2); text-align: center; touch-action: manipulation;
+  transition: color 0.25s; -webkit-tap-highlight-color: transparent; }
+.daynav-item:active { transform: scale(0.97); }
+.daynav-label { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; font-size: 15px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.daynav-icon { width: 15px; height: 15px; }
+.daynav-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; font-weight: 500; color: var(--text-3);
+  white-space: nowrap; transition: color 0.25s; }
+.daynav-count { min-width: 20px; padding: 1px 6px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.24); font-size: 12px; font-weight: 700; }
+.daynav-item.is-active { color: #fff; }
+.daynav-item.is-active .daynav-sub { color: rgba(255, 255, 255, 0.82); }
+@media (max-width: 400px) {
+  .daynav-label { font-size: 14px; gap: 4px; }
+  .daynav-item:not(.is-active) .daynav-icon { display: none; }
+  .res-nav .icon-btn { width: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .daynav-thumb { transition: none; } }
+
 .search { position: relative; }
 .search > .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
 .search .input { padding-left: 42px; }
@@ -107,6 +133,7 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 .hk-card .pick { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); color: transparent; }
 .hk-card.is-selected { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
 .hk-card.is-selected .pick { background: var(--violet); border-color: var(--violet); color: #fff; }
+.hk-card.is-taken { opacity: 0.55; }
 .hk-inter { display: flex; flex-direction: column; gap: 12px; }
 
 .assign-bar {
@@ -241,6 +268,21 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 .legend li:first-child { border-top: 0; }
 .swatch { width: 12px; height: 12px; flex: none; border-radius: 4px; }
 @media (min-width: 640px) { .channels { flex-direction: row; align-items: center; } }
+
+/* Acasă — libere la noapte */
+.tonight { --free: #0596e0; --busy: var(--border); display: flex; align-items: center; gap: 18px; }
+.donut-sm { width: 132px; height: 132px; background: var(--surface-2); transition: background 0.4s; }
+.donut-sm .donut-hole { inset: 18px; }
+.donut-sm .donut-hole strong { font-size: 32px; }
+.tonight-legend li { padding: 7px 0; gap: 10px; font-size: 14.5px; }
+.tonight-legend .icon { color: var(--text-3); width: 14px; height: 14px; }
+.swatch-free { background: #0596e0; }
+.swatch-busy { background: var(--border); }
+:root[data-theme="dark"] .swatch-busy, :root[data-theme="dark"] .tonight { --busy: #334155; }
+:root[data-theme="dark"] .swatch-busy { background: #334155; }
+.free-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.free-chip { padding: 3px 9px; border-radius: var(--r-pill); background: rgba(5, 150, 224, 0.12); color: #0596e0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 380px) { .tonight { flex-direction: column; align-items: stretch; } .donut-sm { align-self: center; } }
 
 .period-card summary, .pay-card summary { list-style: none; cursor: pointer; }
 .period-card summary::-webkit-details-marker, .pay-card summary::-webkit-details-marker { display: none; }

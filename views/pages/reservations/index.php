@@ -1,35 +1,48 @@
 <?php
 /**
  * Rezervări — one shell for the four tabs. Data is loaded by assets/js/reservations.js.
- * @var array $user @var string $tab @var bool $canEdit @var string $date
+ * @var array $user @var string $tab @var bool $canEdit
  */
 use One\Controllers\ReservationsController;
 
-$heading = [
-    'today'    => ['Astăzi', 'check-in-uri programate'],
-    'tomorrow' => ['Mâine', 'check-in-uri programate'],
-    'whatsapp' => ['WhatsApp', 'oaspeți de contactat'],
-    'link'     => ['Generator link', 'Guest App pentru ultimele 4 zile'],
-][$tab];
+$short = static function (string $ymd): string {
+    $d = new DateTimeImmutable($ymd);
+    $days = ['Dum', 'Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm'];
+    $months = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    return $days[(int) $d->format('w')] . ', ' . $d->format('j') . ' ' . $months[(int) $d->format('n') - 1];
+};
+$sub = [
+    'today'    => $short(date('Y-m-d')),
+    'tomorrow' => $short(date('Y-m-d', strtotime('+1 day'))),
+    'whatsapp' => 'Review-uri',
+    'link'     => 'Guest App',
+];
+$tabIcons = ['whatsapp' => 'whatsapp', 'link' => 'link'];
+$index = array_search($tab, array_keys(ReservationsController::TABS), true);
 ?>
 <div class="stack" data-reservations data-tab="<?= h($tab) ?>" data-can-edit="<?= $canEdit ? '1' : '0' ?>">
 
-  <div class="hero row-between">
-    <div class="grow">
-      <div class="eyebrow"><?= h(ro_date(new DateTimeImmutable($date))) ?></div>
-      <h1><?= h($heading[0]) ?></h1>
-      <p><span class="badge badge-blue tabular" data-count>—</span> <span class="muted"><?= h($heading[1]) ?></span></p>
-    </div>
+  <div class="res-nav">
+    <nav class="daynav" aria-label="Secțiuni Rezervări" style="--i: <?= (int) $index ?>" data-daynav>
+      <span class="daynav-thumb" aria-hidden="true"></span>
+      <?php foreach (array_keys(ReservationsController::TABS) as $i => $key):
+          $t = ReservationsController::TABS[$key];
+          $on = $key === $tab;
+      ?>
+        <a href="<?= h($t['path']) ?>" class="daynav-item<?= $on ? ' is-active' : '' ?>" data-i="<?= $i ?>" <?= $on ? 'aria-current="page"' : '' ?>>
+          <span class="daynav-label">
+            <?php if (isset($tabIcons[$key])): ?><?= icon($tabIcons[$key], 'icon daynav-icon') ?><?php endif; ?>
+            <?= h($t['label']) ?>
+            <?php if ($on): ?><span class="daynav-count tabular" data-count>·</span><?php endif; ?>
+          </span>
+          <span class="daynav-sub"><?= h($sub[$key]) ?></span>
+        </a>
+      <?php endforeach; ?>
+    </nav>
     <?php if ($tab !== 'link'): ?>
       <button type="button" class="icon-btn icon-btn-surface" data-refresh aria-label="Reîmprospătează"><?= icon('refresh') ?></button>
     <?php endif; ?>
   </div>
-
-  <nav class="tabs" aria-label="Secțiuni Rezervări">
-    <?php foreach (ReservationsController::TABS as $key => $t): ?>
-      <a href="<?= h($t['path']) ?>" class="tab<?= $key === $tab ? ' is-active' : '' ?>" <?= $key === $tab ? 'aria-current="page"' : '' ?>><?= h($t['label']) ?></a>
-    <?php endforeach; ?>
-  </nav>
 
   <?php if (!$canEdit): ?>
     <div class="alert alert-info"><?= icon('info', 'icon icon-sm') ?><span>Ai acces doar de vizualizare: toggle-urile, Nuki și marcajele WhatsApp sunt blocate.</span></div>

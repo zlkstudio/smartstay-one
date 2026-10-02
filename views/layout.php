@@ -39,12 +39,14 @@ $showNav = count($navItems) > 1;
     <div class="topbar-title"><?= h($pageTitle) ?></div>
   <?php else: ?>
     <a href="<?= $isMaid ? '/housekeeping' : '/' ?>" class="logo" aria-label="SmartStay ONE — Acasă">
-      <span class="logo-word"><span>smart</span><span class="logo-stay">stay</span></span>
-      <span class="logo-sep"></span><span class="logo-one">ONE</span>
+      <?= logo() ?>
     </a>
     <div class="topbar-title"></div>
   <?php endif; ?>
   <div class="topbar-actions">
+    <?php if ($user && Access::can($user, 'settings')): ?>
+      <a href="/settings" class="icon-btn desktop-only<?= $active === 'settings' ? ' is-active' : '' ?>" aria-label="Setări" title="Setări · stare sistem"><?= icon('settings') ?></a>
+    <?php endif; ?>
     <button type="button" class="icon-btn" data-theme-toggle aria-label="Schimbă tema">
       <span class="show-light"><?= icon('moon') ?></span><span class="show-dark"><?= icon('sun') ?></span>
     </button>

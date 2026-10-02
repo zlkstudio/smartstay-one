@@ -5,10 +5,7 @@ use One\Auth\Auth;
 <div class="auth">
   <div class="auth-card">
     <div class="auth-head">
-      <span class="logo logo-lg">
-        <span class="logo-word"><span>smart</span><span class="logo-stay">stay</span></span>
-        <span class="logo-sep"></span><span class="logo-one">ONE</span>
-      </span>
+      <span class="logo logo-lg"><?= logo() ?></span>
       <h1>Autentificare</h1>
       <p>Rezervări, curățenie și inventar — într-un singur loc.</p>
     </div>

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace One\Reports;
 
+use One\Properties;
 use One\Stays;
 
 /**
@@ -14,7 +15,8 @@ use One\Stays;
  */
 final class OperationsReport
 {
-    public const KEY = 'operations';
+    /** Bumped when the payload rules change, so an old cached payload is never served. */
+    public const KEY = 'operations_v2';
     public const PAST_DAYS = 30;
     public const NEXT_DAYS = 14;
 
@@ -53,7 +55,10 @@ final class OperationsReport
     public static function build(array $stays): array
     {
         $today = date('Y-m-d');
+        // Ap. 40 and "Daily" are not in the rented portfolio — out of every number below.
+        $stays = array_values(array_filter($stays, static fn(array $s): bool => !Properties::isReportExcluded($s['apartment'])));
         ['source' => $source, 'apartments' => $roster] = Stays::roster($stays);
+        $roster = array_values(array_filter($roster, static fn(string $a): bool => !Properties::isReportExcluded($a)));
         $inRoster = array_flip($roster);
         $total = count($roster);
 

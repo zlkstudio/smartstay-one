@@ -1,5 +1,5 @@
 <?php
-/** @var array $report */
+/** @var array $report @var array<string,string> $nukiLocks @var ?list<array> $nukiCheck */
 use One\System\HealthCheck;
 
 $statusLabel = ['ok' => 'Conectat', 'warn' => 'Tabele lipsă', 'error' => 'Eroare', 'missing' => 'Neconfigurat'];
@@ -63,6 +63,42 @@ $statusBadge = ['ok' => 'badge-success', 'warn' => 'badge-warning', 'error' => '
       </div>
     <?php endforeach; ?>
   </div>
+
+  <?php if ($nukiLocks): ?>
+    <h2 class="section-title" id="nuki">Yale Nuki</h2>
+    <div class="card stack-sm">
+      <div class="row-between">
+        <span class="list-sub"><?= count($nukiLocks) ?> yale în config/nuki.php</span>
+        <a class="btn btn-secondary btn-sm" href="/settings?nuki=1#nuki"><?= icon('refresh', 'icon icon-sm') ?><span><?= $nukiCheck === null ? 'Verifică în Nuki' : 'Verifică din nou' ?></span></a>
+      </div>
+      <?php if ($nukiCheck === null): ?>
+        <dl class="kv">
+          <?php foreach ($nukiLocks as $apt => $lock): ?>
+            <dt>Ap. <?= h((string) $apt) ?></dt><dd class="tabular"><?= h($lock) ?></dd>
+          <?php endforeach; ?>
+        </dl>
+      <?php else: ?>
+        <div class="list">
+          <?php foreach ($nukiCheck as $n): ?>
+            <div class="list-item">
+              <span class="dot <?= $n['ok'] ? 'dot-ok' : 'dot-warn' ?>"></span>
+              <span class="grow">
+                <span class="list-title">Ap. <?= h($n['apartment']) ?><?= $n['name'] ? ' · ' . h($n['name']) : '' ?></span><br>
+                <span class="list-sub">
+                  <?= h($n['lock']) ?>
+                  <?php if ($n['online'] !== null): ?> · <?= $n['online'] ? 'online' : 'offline' ?><?php endif; ?>
+                  <?php if ($n['keypad'] !== null): ?> · <?= $n['keypad'] ? 'tastatură OK' : 'fără tastatură' ?><?php endif; ?>
+                  <?php if ($n['codes'] !== null): ?> · <?= (int) $n['codes'] ?> coduri<?php endif; ?>
+                </span>
+                <?php if ($n['problem'] !== ''): ?><span class="list-sub" style="display:block;color:var(--critical)"><?= h($n['problem']) ?></span><?php endif; ?>
+              </span>
+              <span class="badge <?= $n['ok'] ? 'badge-success' : 'badge-critical' ?>"><?= $n['ok'] ? 'OK' : 'Problemă' ?></span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <?php if ($report['reports'] !== null): ?>
     <h2 class="section-title">Rapoarte</h2>

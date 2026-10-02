@@ -9,6 +9,7 @@
 
   const TAB = root.dataset.tab;
   const CAN_EDIT = root.dataset.canEdit === '1';
+  const SELF = root.dataset.self || null; // a maid's own name: she can only take free apartments for herself
   const $list = root.querySelector('[data-list]');
   const $error = root.querySelector('[data-error]');
 
@@ -53,28 +54,34 @@
       $bar.hidden = selected.size === 0;
     }
 
+    const mine = (r) => !!SELF && r.assigned.length > 0 && r.assigned.every((m) => m === SELF);
+    const pickable = (r) => CAN_EDIT && r.submissions === 0 && (!SELF || r.assigned.length === 0);
+
     function status(r) {
       if (r.submissions >= 2) return '<span class="badge badge-success">' + icon('check') + 'Finalizat</span>';
       if (r.submissions === 1) return '<span class="badge badge-success">' + icon('check') + 'Checklist trimis</span>';
+      if (mine(r)) return '<span class="badge badge-violet">' + icon('check') + 'Al tău</span>';
       if (r.assigned.length) return `<span class="badge badge-violet">${esc(r.assigned.join(', '))}</span>`;
       return '<span class="badge badge-warning">Nealocat</span>';
     }
 
     function card(r) {
       const on = selected.has(r.apartment);
-      const canPick = CAN_EDIT && r.submissions === 0;
-      return `<article class="card hk-card${on ? ' is-selected' : ''}${canPick ? ' is-selectable' : ''}" data-apt="${esc(r.apartment)}"
+      const canPick = pickable(r);
+      const canUnassign = CAN_EDIT && r.assigned.length && r.submissions === 0 && (!SELF || mine(r));
+      const canChecklist = r.assigned.length && (!SELF || mine(r));
+      const sub = r.checkOutTime ? `${icon('door')} Check-out azi · ${esc(r.checkOutTime)}` : `${icon('calendar')} Alocat azi`;
+      return `<article class="card hk-card${on ? ' is-selected' : ''}${canPick ? ' is-selectable' : ''}${SELF && r.assigned.length && !mine(r) ? ' is-taken' : ''}" data-apt="${esc(r.apartment)}"
           ${canPick ? 'role="button" tabindex="0" aria-pressed="' + on + '"' : ''}>
         <span class="apt-badge apt-badge-violet"><span>Apt</span><strong>${esc(r.apartment)}</strong></span>
         <span class="grow">
-          <span class="list-title">${esc(r.guest)}</span>
-          <span class="list-sub">${icon('door')} Check-out azi · ${esc(r.checkOutTime)}</span>
+          <span class="list-title">${SELF ? 'Apartament ' + esc(r.apartment) : esc(r.guest)}</span>
+          <span class="list-sub">${sub}</span>
           <span class="hk-status">${status(r)}</span>
         </span>
         <span class="hk-side">
-          ${CAN_EDIT && r.assigned.length && r.submissions === 0
-            ? `<button type="button" class="link-btn" data-unassign="${esc(r.apartment)}">Anulează</button>` : ''}
-          ${r.assigned.length ? `<a class="link-btn" href="/housekeeping/checklist/${encodeURIComponent(r.apartment)}">Checklist</a>` : ''}
+          ${canUnassign ? `<button type="button" class="link-btn" data-unassign="${esc(r.apartment)}">${SELF ? 'Renunț' : 'Anulează'}</button>` : ''}
+          ${canChecklist ? `<a class="link-btn" href="/housekeeping/checklist/${encodeURIComponent(r.apartment)}">Checklist</a>` : ''}
           ${canPick ? `<span class="pick" aria-hidden="true">${icon('check')}</span>` : ''}
         </span>
       </article>`;
@@ -94,8 +101,9 @@
       return window.ONE.api('/api/housekeeping/checkouts', { timeout: 30000 })
         .then((data) => {
           rows = data.checkouts || [];
+          if (SELF) rows.sort((a, b) => (mine(b) - mine(a)) || (pickable(b) - pickable(a)));
           // Drop selections that are no longer pickable.
-          [...selected].forEach((a) => { if (!rows.some((r) => r.apartment === a && r.submissions === 0)) selected.delete(a); });
+          [...selected].forEach((a) => { if (!rows.some((r) => r.apartment === a && pickable(r))) selected.delete(a); });
           render();
         })
         .catch((e) => { $list.innerHTML = ''; showError('Nu s-au putut încărca apartamentele: ' + e.message); });

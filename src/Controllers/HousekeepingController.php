@@ -17,8 +17,9 @@ use RuntimeException;
  * Housekeeping — port of the legacy app (index.php, intermediate.php, cleaning.php,
  * cleaning_form.php, checklist.js, send_email.php + endpoints).
  *
- * Maids: see and submit ONLY the apartments assigned to them today (filtered here,
- * by $user['maid_ref'] → config('maids')). Admin / manager / user-edit: allocation,
+ * Maids: see today's check-outs (without guest names), take free ones for themselves only,
+ * release their own pending ones, and submit checklists ONLY for apartments assigned to them
+ * ($user['maid_ref'] → config('maids')). Admin / manager / user-edit: allocation to any maid,
  * intermediate cleanings, and checklists on behalf of the assigned maid.
  */
 final class HousekeepingController
@@ -33,27 +34,17 @@ final class HousekeepingController
         $user = Guard::requireAccess('housekeeping', 'view');
         $today = date('Y-m-d');
 
-        if (self::isMaid($user)) {
-            $maid = self::maidName($user);
-            $apartments = CleaningRepository::apartmentsOf($maid, $today);
-            view('pages/housekeeping/maid', [
-                'user'       => $user,
-                'pageTitle'  => 'Curățenie',
-                'active'     => 'housekeeping',
-                'maid'       => $maid,
-                'apartments' => $apartments,
-                'counts'     => CleaningRepository::submissionCounts($apartments, $today),
-                'styles'     => ['assets/css/modules.css'],
-            ]);
-        }
+        $isMaid = self::isMaid($user);
+        $maids = $isMaid ? self::ownMaid($user) : config('maids', []);
 
         view('pages/housekeeping/index', [
             'user'      => $user,
-            'pageTitle' => 'Curățenie · Check-out',
+            'pageTitle' => $isMaid ? 'Curățenie' : 'Curățenie · Check-out',
             'active'    => 'housekeeping',
             'tab'       => 'checkout',
             'canEdit'   => Access::can($user, 'housekeeping', 'edit'),
-            'maids'     => config('maids', []),
+            'maids'     => $maids,
+            'selfMaid'  => $isMaid ? array_key_first($maids) : null,
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/housekeeping.js'],
         ]);
@@ -69,6 +60,7 @@ final class HousekeepingController
             'tab'       => 'intermediate',
             'canEdit'   => Access::can($user, 'housekeeping', 'edit'),
             'maids'     => config('maids', []),
+            'selfMaid'  => null,
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/housekeeping.js'],
         ]);
@@ -108,7 +100,8 @@ final class HousekeepingController
     /** GET /api/housekeeping/checkouts — today's check-outs + who has which apartment. */
     public static function checkouts(): never
     {
-        self::requireStaff('view');
+        $user = Guard::requireAccess('housekeeping', 'view');
+        $isMaid = self::isMaid($user);
         $today = date('Y-m-d');
         try {
             $rows = HousekeepingFeed::checkouts($today);
@@ -116,10 +109,24 @@ final class HousekeepingController
             json_response(['ok' => false, 'error' => $e->getMessage()], 502);
         }
         $assignments = CleaningRepository::assignmentsForDate($today);
+        if ($isMaid) {
+            // Anything assigned to her outside today's check-outs still shows up in her list.
+            $maid = self::maidName($user);
+            $listed = array_column($rows, 'apartment');
+            foreach (CleaningRepository::apartmentsOf($maid, $today) as $apartment) {
+                if (!in_array($apartment, $listed, true)) {
+                    $rows[] = ['reservationId' => '', 'apartment' => $apartment, 'guest' => '', 'checkOutTime' => ''];
+                }
+            }
+        }
         $counts = CleaningRepository::submissionCounts(array_column($rows, 'apartment'), $today);
         foreach ($rows as &$row) {
             $row['assigned'] = array_values(array_unique(array_column($assignments[$row['apartment']] ?? [], 'maid')));
             $row['submissions'] = $counts[$row['apartment']] ?? 0;
+            if ($isMaid) {
+                // A maid only needs the apartment and the time — never the guest.
+                unset($row['guest'], $row['reservationId']);
+            }
         }
         unset($row);
         json_response(['ok' => true, 'date' => $today, 'checkouts' => $rows]);
@@ -128,29 +135,43 @@ final class HousekeepingController
     /** POST /api/housekeeping/assign {maid: key, apartments: [..]} */
     public static function assign(): never
     {
-        $user = self::requireStaff('edit');
+        $user = Guard::requireAccess('housekeeping', 'edit');
         Guard::requireCsrf();
         $in = request_json();
-        $maid = self::maidFromKey((string) ($in['maid'] ?? ''));
         $apartments = self::apartmentList($in['apartments'] ?? []);
         if (!$apartments) {
             json_response(['ok' => false, 'error' => 'Selectează cel puțin un apartament.'], 422);
         }
+        if (self::isMaid($user)) {
+            // A maid takes apartments only for herself: today's check-outs nobody else has.
+            $maid = self::maidName($user);
+            self::requireClaimable($maid, $apartments);
+        } else {
+            $maid = self::maidFromKey((string) ($in['maid'] ?? ''));
+        }
         CleaningRepository::assign($maid, $apartments, date('Y-m-d'));
         Audit::log((int) $user['id'], 'housekeeping.assign', 'maid', $maid, ['apartments' => $apartments]);
+        $to = self::isMaid($user) ? 'ție' : $maid;
         json_response(['ok' => true, 'message' => count($apartments) === 1
-            ? "Apartamentul {$apartments[0]} a fost alocat către $maid."
-            : count($apartments) . " apartamente alocate către $maid."]);
+            ? "Apartamentul {$apartments[0]} a fost alocat către $to."
+            : count($apartments) . " apartamente alocate către $to."]);
     }
 
     /** POST /api/housekeeping/unassign {apartment} — removes today's pending allocation. */
     public static function unassign(): never
     {
-        $user = self::requireStaff('edit');
+        $user = Guard::requireAccess('housekeeping', 'edit');
         Guard::requireCsrf();
         $apartment = self::apartmentList([(string) (request_json()['apartment'] ?? '')])[0] ?? null;
         if ($apartment === null) {
             json_response(['ok' => false, 'error' => 'Apartament invalid.'], 422);
+        }
+        if (self::isMaid($user)) {
+            $maid = self::maidName($user);
+            $holders = array_values(array_unique(array_column(CleaningRepository::assignmentsForDate(date('Y-m-d'))[$apartment] ?? [], 'maid')));
+            if ($holders !== [$maid]) {
+                json_response(['ok' => false, 'error' => "Apartamentul $apartment nu e alocat ție."], 403);
+            }
         }
         $removed = CleaningRepository::unassign($apartment, date('Y-m-d'));
         Audit::log((int) $user['id'], 'housekeeping.assign', 'apartment', $apartment, ['unassigned' => $removed]);
@@ -298,6 +319,34 @@ final class HousekeepingController
             Guard::forbidden($user);
         }
         return (string) $maids[$ref];
+    }
+
+    /** The maid's own entry from config('maids'): [key => display name]. */
+    private static function ownMaid(array $user): array
+    {
+        $name = self::maidName($user);
+        return [(string) $user['maid_ref'] => $name];
+    }
+
+    /** Every apartment must be checking out today and free, or already hers. */
+    private static function requireClaimable(string $maid, array $apartments): void
+    {
+        $today = date('Y-m-d');
+        try {
+            $checkouts = array_column(HousekeepingFeed::checkouts($today), 'apartment');
+        } catch (RuntimeException $e) {
+            json_response(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
+        $assignments = CleaningRepository::assignmentsForDate($today);
+        foreach ($apartments as $apartment) {
+            if (!in_array($apartment, $checkouts, true)) {
+                json_response(['ok' => false, 'error' => "Apartamentul $apartment nu are check-out azi."], 422);
+            }
+            $others = array_diff(array_unique(array_column($assignments[$apartment] ?? [], 'maid')), [$maid]);
+            if ($others) {
+                json_response(['ok' => false, 'error' => "Apartamentul $apartment e deja alocat către " . implode(', ', $others) . '.'], 409);
+            }
+        }
     }
 
     private static function maidFromKey(string $key): string

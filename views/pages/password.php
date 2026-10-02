@@ -41,10 +41,7 @@ $form = static function () use ($field, $errors, $forced, $user): void { ?>
 <div class="auth">
   <div class="auth-card">
     <div class="auth-head">
-      <span class="logo logo-lg">
-        <span class="logo-word"><span>smart</span><span class="logo-stay">stay</span></span>
-        <span class="logo-sep"></span><span class="logo-one">ONE</span>
-      </span>
+      <span class="logo logo-lg"><?= logo() ?></span>
       <h1>Bun venit, <?= h(explode(' ', $user['name'])[0]) ?>!</h1>
       <p>Alege o parolă a ta înainte de a începe.</p>
     </div>

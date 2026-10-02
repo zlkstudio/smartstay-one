@@ -16,6 +16,24 @@ final class Properties
      */
     public const PARKING_UNITS = ['58', '88', '143', '165', '166', '167', '174', '192'];
 
+    /**
+     * Units Previo returns that are not part of the rented portfolio: no occupancy, no channels,
+     * no "libere la noapte" (Rapoarte + Acasă). Matched on the Previo object name, case-insensitive.
+     */
+    public const REPORT_EXCLUDED = ['40', 'daily'];
+
+    public static function isReportExcluded(string $objectName): bool
+    {
+        $name = strtolower(trim($objectName));
+        $name = preg_replace('/^(ap\.?|apt\.?|apartament)\s*/', '', $name) ?? $name;
+        foreach (self::REPORT_EXCLUDED as $excluded) {
+            if ($name === $excluded || ($excluded === 'daily' && str_starts_with($name, 'daily'))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** "P-167", "P 167", "Parcare 88", "Parking 174", or a known parking id → "P-167". Else null. */
     public static function parkingLabel(string $objectName): ?string
     {

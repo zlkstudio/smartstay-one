@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
-> **Ultima actualizare**: 2 octombrie 2026 (12:00)
-> **Versiune**: 1.2.0-stage3 (Inventar + Rapoarte + plata menajerelor)
+> **Ultima actualizare**: 2 octombrie 2026 (19:30)
+> **Versiune**: 1.2.1-cleanup (logo + iconițe noi, Acasă cu donut, Rezervări fără header, menajere cu auto-alocare)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -27,6 +27,10 @@
 🔲 Cron orar în cPanel pentru `bin/reports-cron.php` (§6.5)
 🔲 `php bin/previo-fields.php` → confirmă câmpul de status (anulări) și de preț (venituri, Etapa 4)
 🔲 Verificat raportul de plată ONE vs. raportul vechi pe săptămâna trecută (aceleași totaluri)
+✅ Clean-up 1.2.1 scris — patch `0004-clean-up` (vezi §8.1)
+🔲 `git am` patch 0004 → push → deploy → doctor arată **1.2.1-cleanup**
+🔲 Setări (desktop) → Yale Nuki → **Verifică în Nuki** — motivul exact pentru Ap. 424
+🔲 App-ul vechi Rezervări: adaugă `'400' => '18045779828'` în `reservations/config/nuki-smartlocks.php` (cronul de auto-Nuki e acolo)
 ➡️ Următorul pas: **Etapa 4** — Setări apartamente (tarife, praguri stoc, checklist, listă apartamente în UI), venituri din Previo, migrare conturi reale
 
 ---
@@ -102,14 +106,16 @@ smartstay-one/
 |---|---|---|---|---|---|
 | Admin | edit | edit | edit | edit | edit |
 | Manager | edit | edit | edit | edit | — |
-| Menajeră | — | doar lista ei | — | — | — |
+| Menajeră | — | check-out-urile de azi, se alocă doar pe ea | — | — | — |
 | Utilizator | după `permissions` | idem | idem | idem | — |
 
 Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
 - **view**: vede listele; toggle-uri, Nuki, „Trimis" WhatsApp, alocări și checklist sunt blocate (API → 403).
 - **edit**: tot ce făcea app-ul vechi.
-- **Menajera**: vede DOAR apartamentele alocate ei azi (`maid_assignments` după `config('maids')[maid_ref]`).
-  Orice alt apartament, `/housekeeping/intermediate`, `/api/housekeeping/checkouts`, `/reservations` → 403.
+- **Menajera** (din 1.2.1): vede check-out-urile de azi **fără numele oaspeților**, își preia apartamentele libere
+  („Preiau") și renunță doar la ale ei, încă nefăcute. Serverul refuză alocarea pe altă menajeră, un apartament deja luat
+  sau unul fără check-out azi. Checklist doar pentru apartamentele ei. `/housekeeping/intermediate`, `/reservations` → 403.
+  Admin / Manager / Utilizator cu edit: alocă oricărei menajere, ca înainte.
 - Fiecare acțiune de modul ajunge în `audit_log` (`reservation.status`, `reservation.nuki`, `housekeeping.*`).
   Pagina Utilizatori arată doar activitatea pe conturi.
 
@@ -298,6 +304,18 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 
 ---
 
+### 8.1 Clean-up 1.2.1
+- **Logo** PNG (`assets/img/logo.png` + `logo-dark.png` pentru tema închisă), helper `logo()`. **Iconițe PWA** noi (any + maskable + apple-touch), manifest cu `?v=2`, SW `one-shell-v2`.
+  Pe iPhone iconița de pe ecran se schimbă doar după ștergere + reinstalare din Safari.
+- **Acasă**: fără „Stare sistem". Donut „libere la noapte" + ocupate / check-in / check-out + lista apartamentelor libere.
+  **Setări** (stare sistem, Yale Nuki) doar pe desktop (≥ 900px): rotița din bara de sus și linkul din Contul meu.
+- **Rapoarte / Acasă**: Ap. **40** și **Daily** scoase din ocupare, canale și libere (`Properties::REPORT_EXCLUDED`). Cache-ul are cheie nouă `operations_v2`.
+- **Rezervări**: fără titlu / dată / „N rezervări"; navigare segmentată cu cursor glisant (zi + dată, număr pe tabul activ).
+  Butoane: WhatsApp · Guest App · Nuki. Iconițe noi WhatsApp și Nuki (smart door).
+- **Nuki**: Ap. 400 → yala `18045779828` (implicit în `Nuki::DEFAULT_LOCKS`; `config/nuki.php` are prioritate).
+  Erorile spun motivul (401 token, 403 yală în alt cont / fără drept, 404 ID greșit, 400/422 cod refuzat sau tastatură plină).
+  Setări → Yale Nuki → „Verifică în Nuki": pentru fiecare yală — în cont, online, tastatură asociată, câte coduri are.
+
 ## 9. Troubleshooting
 
 | Simptom | Cauză / verificare |
@@ -310,7 +328,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 | „Lipsește config/previo.php" pe Rezervări/Curățenie | §6.4 |
 | „Previo a răspuns cu eroare (401)" | username/parolă din `previo.php` — copiază din Guest App |
 | Nuki: „nu are yală Nuki configurată" | apartamentul lipsește din `smartlocks` în `config/nuki.php` |
-| Nuki eșuează | `tail -20 ~/one.smartstay.ro/storage/logs/nuki.log` |
+| Nuki eșuează | Mesajul din toast spune motivul; Setări → Yale Nuki → Verifică; `tail -20 ~/one.smartstay.ro/storage/logs/nuki.log` |
 | Toast „Guest App nesincronizat" | `config/checkin-sync.php` lipsă/greșit; detalii în `storage/logs/app.log` (`GuestAppSync`) |
 | Menajera vede „Nicio curățenie alocată" | nu i s-a alocat nimic azi SAU `maid_ref` din cont ≠ cheia din `maids` (Setări → Menajere) |
 | Checklist: „Fotografia X lipsește" | `upload_max_filesize` / `post_max_size` prea mici în cPanel (min. 16M) |

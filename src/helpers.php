@@ -149,6 +149,13 @@ function icon(string $name, string $class = 'icon'): string
 }
 
 /** Decoded JSON request body (POST from ONE.api). Empty array when absent/invalid. */
+/** SmartStay ONE wordmark (PNG), with a light-on-dark variant for the dark theme. */
+function logo(string $class = 'logo-img'): string
+{
+    return '<img class="' . h($class) . ' show-light" src="' . h(asset('assets/img/logo.png')) . '" alt="SmartStay ONE" width="428" height="144">'
+        . '<img class="' . h($class) . ' show-dark" src="' . h(asset('assets/img/logo-dark.png')) . '" alt="SmartStay ONE" width="428" height="144">';
+}
+
 function request_json(): array
 {
     static $body = null;

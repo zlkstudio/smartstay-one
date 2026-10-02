@@ -33,7 +33,7 @@ if ($user['phone']) {
         </a>
       <?php endif; ?>
       <?php if (Access::can($user, 'settings')): ?>
-        <a class="list-item" href="/settings">
+        <a class="list-item desktop-only" href="/settings">
           <span class="tile-icon"><?= icon('settings') ?></span>
           <span class="grow"><span class="list-title">Setări și stare sistem</span><br><span class="list-sub">Baze de date, integrări, server</span></span>
           <?= icon('chevron', 'icon icon-sm chev') ?>

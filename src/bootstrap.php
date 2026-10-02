@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Everything below runs after declare(strict_types=1) — never before (fatal error otherwise).
 
 define('ONE_ROOT', dirname(__DIR__));
-define('ONE_VERSION', '1.2.0-stage3');
+define('ONE_VERSION', '1.2.1-cleanup');
 
 spl_autoload_register(static function (string $class): void {
     if (!str_starts_with($class, 'One\\')) {

@@ -18,6 +18,11 @@ use RuntimeException;
  */
 final class Nuki
 {
+    /** Locks added after config/nuki.php was written on the server. Apartment => smartlockId. */
+    private const DEFAULT_LOCKS = [
+        '400' => '18045779828',
+    ];
+
     public static function isConfigured(): bool
     {
         return is_file(ONE_ROOT . '/config/nuki.php');
@@ -29,10 +34,10 @@ final class Nuki
         if (!self::isConfigured()) {
             return [];
         }
-        $map = self::config()['smartlocks'] ?? [];
-        $out = [];
+        $map = (array) (self::config()['smartlocks'] ?? []);
+        $out = self::DEFAULT_LOCKS; // lock ids are not secrets; config/nuki.php wins on conflicts
         foreach ((array) $map as $apartment => $lockId) {
-            $out[(string) $apartment] = (string) $lockId;
+            $out[self::cleanApartment((string) $apartment)] = trim((string) $lockId);
         }
         return $out;
     }
@@ -44,7 +49,7 @@ final class Nuki
 
     /**
      * Pushes a 6-digit keypad code to the apartment's lock.
-     * @return array{ok:bool, http:int, already:bool, lock:string}
+     * @return array{ok:bool, http:int, already:bool, lock:string, reason:string}
      */
     public static function sendKeypadCode(string $apartment, string $guestName, string $code): array
     {
@@ -57,47 +62,130 @@ final class Nuki
             throw new RuntimeException('Cod Nuki invalid.');
         }
 
-        $config = self::config();
-        $base = rtrim((string) ($config['api_base'] ?? 'https://api.nuki.io'), '/');
         $payload = json_encode([
             'name' => $guestName !== '' ? mb_substr($guestName, 0, 32) : 'Guest ' . $apartment,
             'type' => 13, // keypad code
             'code' => (int) $code,
         ]);
+        $res = self::request('PUT', "/smartlock/$lockId/auth", $payload);
+        $ok = $res['error'] === '' && in_array($res['status'], [200, 201, 204, 409], true);
+        self::log(sprintf(
+            'apt=%s lock=%s http=%d %s',
+            $apartment,
+            $lockId,
+            $res['status'],
+            $ok ? 'OK' : ('FAIL ' . ($res['error'] ?: trim(strip_tags(substr($res['body'], 0, 200)))))
+        ));
 
-        $ch = curl_init("$base/smartlock/$lockId/auth");
-        curl_setopt_array($ch, [
+        if ($res['error'] !== '') {
+            throw new RuntimeException('Nuki nu răspunde. Încearcă din nou.');
+        }
+        return [
+            'ok'      => $ok,
+            'http'    => $res['status'],
+            'already' => $res['status'] === 409,
+            'lock'    => $lockId,
+            'reason'  => $ok ? '' : self::reason($res['status'], $res['body'], $lockId),
+        ];
+    }
+
+    /**
+     * Read-only check of one lock: is it in the token's account, online, keypad paired, how many keypad codes.
+     * Used by Setări → Yale Nuki to explain why an apartment does not get its code.
+     * @return array{apartment:string, lock:string, ok:bool, name:?string, online:?bool, keypad:?bool, codes:?int, problem:string}
+     */
+    public static function inspect(string $apartment): array
+    {
+        $apartment = self::cleanApartment($apartment);
+        $lockId = self::smartlocks()[$apartment] ?? '';
+        $out = ['apartment' => $apartment, 'lock' => $lockId, 'ok' => false, 'name' => null,
+            'online' => null, 'keypad' => null, 'codes' => null, 'problem' => ''];
+        if ($lockId === '' || !preg_match('/^\d{5,20}$/', $lockId)) {
+            $out['problem'] = 'ID de yală lipsă sau invalid în config/nuki.php.';
+            return $out;
+        }
+
+        $lock = self::request('GET', "/smartlock/$lockId", null, 12);
+        if ($lock['error'] !== '' || $lock['status'] !== 200) {
+            $out['problem'] = $lock['error'] !== '' ? 'Nuki nu răspunde.' : self::reason($lock['status'], $lock['body'], $lockId);
+            return $out;
+        }
+        $data = json_decode($lock['body'], true) ?: [];
+        $config = (array) ($data['config'] ?? []);
+        $out['name'] = isset($data['name']) ? (string) $data['name'] : null;
+        $out['online'] = isset($data['serverState']) ? (int) $data['serverState'] === 0 : null;
+        $out['keypad'] = !empty($config['keypadPaired']) || !empty($config['keypad2Paired'])
+            || !empty(($data['advancedConfig'] ?? [])['keypad2Paired'] ?? false);
+
+        $auths = self::request('GET', "/smartlock/$lockId/auth", null, 12);
+        if ($auths['error'] === '' && $auths['status'] === 200) {
+            $list = json_decode($auths['body'], true);
+            $out['codes'] = is_array($list) ? count(array_filter($list, static fn($a): bool => (int) ($a['type'] ?? -1) === 13)) : null;
+        }
+
+        $problems = [];
+        if ($out['online'] === false) {
+            $problems[] = 'Yala e offline (bridge / Wi-Fi) — codurile noi nu ajung pe ea.';
+        }
+        if ($out['keypad'] === false) {
+            $problems[] = 'Nicio tastatură (Keypad) asociată yalei în Nuki.';
+        }
+        if ($out['codes'] !== null && $out['codes'] >= self::KEYPAD_CODE_WARN) {
+            $problems[] = "{$out['codes']} coduri de tastatură pe yală — aproape de limita Nuki; șterge codurile vechi din aplicația Nuki.";
+        }
+        $out['problem'] = implode(' ', $problems);
+        $out['ok'] = $problems === [];
+        return $out;
+    }
+
+    /** Above this many keypad codes the lock is flagged (Nuki Keypad holds at most 100 / 200 codes). */
+    private const KEYPAD_CODE_WARN = 90;
+
+    /** Human reason for a non-success Nuki answer. Never includes the token. */
+    private static function reason(int $status, string $body, string $lockId): string
+    {
+        $data = json_decode($body, true);
+        $detail = is_array($data) ? trim((string) ($data['detailMessage'] ?? $data['message'] ?? $data['error'] ?? '')) : '';
+        $detail = $detail !== '' ? ' (' . mb_substr($detail, 0, 160) . ')' : '';
+        return match (true) {
+            $status === 401 => 'Tokenul Nuki e invalid sau a expirat — actualizează api_token în config/nuki.php.',
+            $status === 403 => "Tokenul Nuki nu are acces la yala $lockId — yala e probabil în alt cont Nuki sau tokenul nu are dreptul „Manage authorizations”.",
+            $status === 404 => "Yala $lockId nu există în contul Nuki — ID greșit în config/nuki.php.",
+            $status === 400, $status === 422 => 'Nuki a refuzat codul' . ($detail ?: ' (cod invalid sau limita de coduri a tastaturii atinsă).'),
+            $status === 423 => 'Yala e blocată de o altă operație Nuki. Reîncearcă în câteva secunde.',
+            $status >= 500 => 'Nuki are o problemă temporară (HTTP ' . $status . '). Reîncearcă.',
+            default => 'Nuki a refuzat codul (HTTP ' . $status . ')' . $detail . '.',
+        };
+    }
+
+    /** @return array{status:int, body:string, error:string} */
+    private static function request(string $method, string $path, ?string $body = null, int $timeout = 25): array
+    {
+        $config = self::config();
+        $base = rtrim((string) ($config['api_base'] ?? 'https://api.nuki.io'), '/');
+        $ch = curl_init($base . $path);
+        $options = [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST  => 'PUT',
-            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
             CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_TIMEOUT        => 25,
+            CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_HTTPHEADER     => [
                 'Accept: application/json',
                 'Cache-Control: no-cache',
                 'Authorization: Bearer ' . $config['api_token'],
                 'Content-Type: application/json',
             ],
-        ]);
+        ];
+        if ($body !== null) {
+            $options[CURLOPT_POSTFIELDS] = $body;
+        }
+        curl_setopt_array($ch, $options);
         $response = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-
-        $ok = $error === '' && in_array($status, [200, 201, 204, 409], true);
-        self::log(sprintf(
-            'apt=%s lock=%s http=%d %s',
-            $apartment,
-            $lockId,
-            $status,
-            $ok ? 'OK' : ('FAIL ' . ($error ?: trim(strip_tags(substr((string) $response, 0, 200)))))
-        ));
-
-        if ($error !== '') {
-            throw new RuntimeException('Nuki nu răspunde. Încearcă din nou.');
-        }
-        return ['ok' => $ok, 'http' => $status, 'already' => $status === 409, 'lock' => $lockId];
+        return ['status' => $status, 'body' => is_string($response) ? $response : '', 'error' => $error];
     }
 
     /** "Ap. 295", " 295 " → "295" (defensive, as in the legacy endpoint). */

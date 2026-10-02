@@ -71,7 +71,17 @@
     if (h >= 12 && h < 18) return isRo ? 'Bună ziua' : 'Good afternoon';
     return isRo ? 'Bună seara' : 'Good evening';
   }
-  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+  // Tab bar: slide the thumb to the tapped tab while the next page loads.
+  const daynav = root.querySelector('[data-daynav]');
+  if (daynav) {
+    daynav.addEventListener('click', (event) => {
+      const item = event.target.closest('.daynav-item');
+      if (!item || item.classList.contains('is-active') || event.metaKey || event.ctrlKey) return;
+      daynav.style.setProperty('--i', item.dataset.i);
+      daynav.querySelectorAll('.daynav-item').forEach((el) => el.classList.toggle('is-active', el === item));
+    });
+  }
 
   // Refresh: header button + coming back to the app after more than a minute.
   let loader = null;
@@ -169,9 +179,9 @@
         </div>
         <div class="res-actions res-actions-3">
           <button type="button" class="act act-whatsapp" data-action="welcome" ${r.waPhone ? '' : 'disabled'}>${icon('whatsapp')}WhatsApp</button>
-          <button type="button" class="act act-nuki" data-action="nuki" ${CAN_EDIT && r.hasNuki && r.nukiCode ? '' : 'disabled'}
-            ${r.hasNuki ? '' : 'title="Apartamentul nu are yală Nuki configurată"'}>${icon('key')}${nukiLabel}</button>
           <button type="button" class="act act-guest" data-action="guest-link">${icon('link')}Guest App</button>
+          <button type="button" class="act act-nuki" data-action="nuki" ${CAN_EDIT && r.hasNuki && r.nukiCode ? '' : 'disabled'}
+            ${r.hasNuki ? '' : 'title="Apartamentul nu are yală Nuki configurată"'}>${icon('nuki')}${nukiLabel}</button>
         </div>
       </article>`;
     }
@@ -191,7 +201,7 @@
           : (TAB === 'tomorrow' ? 'Nu sunt check-in-uri programate pentru mâine.' : 'Nu sunt check-in-uri programate azi.'));
       renderChips();
       const total = state.rows.length;
-      $count.textContent = shown.length === total ? plural(total, 'rezervare', 'rezervări') : `${shown.length} / ${total}`;
+      $count.textContent = shown.length === total ? String(total) : `${shown.length}/${total}`;
     }
 
     function load() {
@@ -524,7 +534,7 @@
     window.ONE.api('/api/reservations/recent', { timeout: 30000 })
       .then((data) => {
         rows = data.reservations || [];
-        $count.textContent = plural(rows.length, 'rezervare', 'rezervări');
+        $count.textContent = String(rows.length);
         $select.innerHTML = '<option value="">Alege o rezervare…</option>' + rows.map((r) =>
           `<option value="${esc(r.id)}">${esc(r.name)} · Apt ${esc(r.apartment)} · ${esc(r.checkInLabel)}</option>`).join('');
         $select.disabled = false;

@@ -1,6 +1,6 @@
 <?php
 /**
- * @var array $user @var list<string> $modules @var ?array $health
+ * @var array $user @var list<string> $modules
  * @var bool $canReports @var bool $canInventory @var ?list<string> $critical
  */
 use One\Auth\Access;
@@ -23,25 +23,21 @@ $firstName = explode(' ', trim($user['name']))[0];
     <h1><?= h(greeting()) ?>, <?= h($firstName) ?></h1>
   </div>
 
-  <?php if ($health !== null): ?>
-    <a href="/settings" class="card card-link row">
-      <span class="dot <?= $health['ok'] === $health['total'] ? 'dot-ok' : 'dot-warn' ?>"></span>
-      <span class="grow">
-        <span class="list-title">Stare sistem · <?= (int) $health['ok'] ?>/<?= (int) $health['total'] ?> baze în regulă</span><br>
-        <span class="list-sub"><?= $health['problems'] ? h($health['problems'][0]) : 'Toate conexiunile funcționează' ?></span>
-      </span>
-      <?= icon('chevron', 'icon icon-sm chev') ?>
-    </a>
-  <?php endif; ?>
-
   <?php if ($canReports): ?>
     <h2 class="section-title">Azi</h2>
     <a href="/reports" class="card card-link stack-sm" data-home-today>
-      <div class="stat-grid" data-home-stats>
-        <?php foreach (['Libere la noapte', 'Ocupate', 'Check-in', 'Check-out'] as $label): ?>
-          <div class="stat"><span class="stat-value"><span class="skeleton" style="display:inline-block;width:42px;height:26px"></span></span><span class="stat-label"><?= h($label) ?></span></div>
-        <?php endforeach; ?>
+      <div class="tonight">
+        <div class="donut donut-sm" data-home-donut role="img" aria-label="Libere la noapte">
+          <span class="donut-hole"><strong class="tabular" data-home-free>—</strong><span data-home-free-of>libere la noapte</span></span>
+        </div>
+        <ul class="legend tonight-legend">
+          <li><span class="swatch swatch-free"></span><span class="grow">Libere la noapte</span><strong class="tabular" data-home-v="free">—</strong></li>
+          <li><span class="swatch swatch-busy"></span><span class="grow">Ocupate</span><strong class="tabular" data-home-v="occupied">—</strong></li>
+          <li><?= icon('calendar', 'icon icon-sm muted') ?><span class="grow">Check-in azi</span><strong class="tabular" data-home-v="checkIns">—</strong></li>
+          <li><?= icon('door', 'icon icon-sm muted') ?><span class="grow">Check-out azi</span><strong class="tabular" data-home-v="checkOuts">—</strong></li>
+        </ul>
       </div>
+      <div class="free-chips" data-home-free-list hidden></div>
       <span class="list-sub" data-home-meta>Se încarcă din Previo…</span>
     </a>
     <?php if ($canInventory): ?>

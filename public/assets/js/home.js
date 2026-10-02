@@ -9,21 +9,33 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     if (!window.ONE) return;
-    const stats = card.querySelectorAll('[data-home-stats] .stat-value');
     const meta = card.querySelector('[data-home-meta]');
+    const donut = card.querySelector('[data-home-donut]');
+    const val = (k) => card.querySelector(`[data-home-v="${k}"]`);
 
     window.ONE.api('/api/reports/today', { timeout: 40000 })
       .then((d) => {
         const t = d.today;
-        stats[0].innerHTML = '';
-        stats[0].append(String(t.free.length));
-        const small = document.createElement('small');
-        small.textContent = '/' + d.total;
-        stats[0].append(small);
-        set(stats[1], t.occupied);
-        set(stats[2], t.checkIns);
-        set(stats[3], t.checkOuts);
-        stats.forEach((s) => s.classList.add('tabular'));
+        const free = t.free.length;
+        const total = d.total || free + t.occupied;
+        const pct = total ? (free / total) * 100 : 0;
+        donut.style.background = `conic-gradient(var(--free) 0 ${pct}%, var(--busy) ${pct}% 100%)`;
+        donut.setAttribute('aria-label', `${free} din ${total} apartamente libere la noapte`);
+        set(card.querySelector('[data-home-free]'), String(free));
+        set(card.querySelector('[data-home-free-of]'), `din ${total} libere`);
+        set(val('free'), free);
+        set(val('occupied'), t.occupied);
+        set(val('checkIns'), t.checkIns);
+        set(val('checkOuts'), t.checkOuts);
+
+        const list = card.querySelector('[data-home-free-list]');
+        list.replaceChildren(...t.free.map((apt) => {
+          const chip = document.createElement('span');
+          chip.className = 'free-chip';
+          chip.textContent = apt;
+          return chip;
+        }));
+        list.hidden = free === 0;
         set(meta, `Ocupare medie 30 de nopți: ${d.avgPast}% · actualizat la ${d.computedAt}`);
 
         const stock = document.querySelector('[data-home-stock]');
@@ -36,7 +48,7 @@
         }
       })
       .catch((e) => {
-        stats.forEach((s) => set(s, '—'));
+        card.querySelectorAll('[data-home-v], [data-home-free]').forEach((s) => set(s, '—'));
         set(meta, 'Previo nu a răspuns: ' + e.message);
       });
   });

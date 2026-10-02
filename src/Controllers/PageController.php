@@ -5,6 +5,7 @@ namespace One\Controllers;
 
 use One\Auth\Access;
 use One\Http\Guard;
+use One\Integrations\Nuki;
 use One\Inventory\InventoryRepository;
 use One\System\HealthCheck;
 use Throwable;
@@ -40,7 +41,6 @@ final class PageController
             'pageTitle'  => 'Acasă',
             'active'     => 'home',
             'modules'    => $modules,
-            'health'     => $user['role'] === 'admin' ? HealthCheck::summary() : null,
             'canReports' => $canReports,
             'canInventory' => Access::can($user, 'inventory'),
             'critical'   => $critical,
@@ -58,7 +58,25 @@ final class PageController
             'active'    => 'settings',
             'backHref'  => '/account',
             'report'    => HealthCheck::full(),
+            'nukiLocks' => Nuki::isConfigured() ? Nuki::smartlocks() : [],
+            // Live check against the Nuki API only on request (≈2 calls per lock).
+            'nukiCheck' => isset($_GET['nuki']) && Nuki::isConfigured() ? self::nukiCheck() : null,
         ]);
+    }
+
+    /** @return list<array> */
+    private static function nukiCheck(): array
+    {
+        $out = [];
+        foreach (array_keys(Nuki::smartlocks()) as $apartment) {
+            try {
+                $out[] = Nuki::inspect((string) $apartment);
+            } catch (Throwable $e) {
+                $out[] = ['apartment' => (string) $apartment, 'lock' => '', 'ok' => false, 'name' => null,
+                    'online' => null, 'keypad' => null, 'codes' => null, 'problem' => $e->getMessage()];
+            }
+        }
+        return $out;
     }
 
     public static function install(): never

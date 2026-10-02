@@ -127,7 +127,12 @@ final class ReservationsController
             json_response(['ok' => false, 'error' => $e->getMessage()], 502);
         }
         if (!$result['ok']) {
-            json_response(['ok' => false, 'error' => 'Nuki a refuzat codul (HTTP ' . $result['http'] . ').'], 502);
+            Audit::log((int) $user['id'], 'reservation.nuki', 'reservation', $id, [
+                'apartment' => $row['apartment'],
+                'http'      => $result['http'],
+                'failed'    => true,
+            ]);
+            json_response(['ok' => false, 'error' => $result['reason']], 502);
         }
 
         Audit::log((int) $user['id'], 'reservation.nuki', 'reservation', $id, [

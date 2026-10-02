@@ -95,14 +95,10 @@ p { margin: 0; }
 .icon-lg { width: 28px; height: 28px; }
 
 /* ── Logo ─────────────────────────────────────────────────────────────── */
-.logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: -0.03em; color: var(--text); }
-.logo-word { display: inline-flex; align-items: center; }
-.logo-stay { background: var(--blue-grad); color: #fff; padding: 1px 6px 2px; border-radius: 7px; margin-left: 1px; }
-.logo-sep { width: 1.5px; height: 22px; background: var(--border); }
-.logo-one { color: var(--blue); letter-spacing: 0.04em; }
-.logo-lg { font-size: 30px; gap: 14px; }
-.logo-lg .logo-stay { border-radius: 9px; padding: 1px 8px 3px; }
-.logo-lg .logo-sep { height: 32px; width: 2px; }
+.logo { display: inline-flex; align-items: center; }
+.logo-img { display: block; height: 30px; width: auto; }
+.logo-lg .logo-img { height: 56px; }
+:root[data-theme="dark"] .logo .show-dark { display: block; }
 
 /* ── App shell ────────────────────────────────────────────────────────── */
 .topbar {
@@ -116,8 +112,6 @@ p { margin: 0; }
   border-bottom: 1px solid var(--border);
 }
 .topbar-title { flex: 1; min-width: 0; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar .logo { font-size: 17px; gap: 8px; }
-.topbar .logo-sep { height: 18px; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; }
 .icon-btn {
   display: inline-grid; place-items: center; width: 40px; height: 40px;
@@ -165,6 +159,8 @@ p { margin: 0; }
 .nav-item[data-module="housekeeping"].is-active .nav-pill { background: var(--violet-soft); }
 .nav-item[data-module="inventory"].is-active { color: var(--indigo); }
 .nav-item[data-module="inventory"].is-active .nav-pill { background: var(--indigo-soft); }
+
+@media (max-width: 899px) { .desktop-only { display: none !important; } }
 
 @media (min-width: 900px) {
   .main { padding-top: 32px; }
