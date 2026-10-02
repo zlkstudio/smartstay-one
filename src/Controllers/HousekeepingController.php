@@ -17,8 +17,8 @@ use RuntimeException;
  * Housekeeping — port of the legacy app (index.php, intermediate.php, cleaning.php,
  * cleaning_form.php, checklist.js, send_email.php + endpoints).
  *
- * Maids: see today's check-outs (without guest names), take free ones for themselves only,
- * release their own pending ones, and submit checklists ONLY for apartments assigned to them
+ * Maids: see today's check-outs (without guest names), take free ones for themselves only
+ * (an allocation can't be undone from ONE), and submit checklists ONLY for apartments assigned to them
  * ($user['maid_ref'] → config('maids')). Admin / manager / user-edit: allocation to any maid,
  * intermediate cleanings, and checklists on behalf of the assigned maid.
  */
@@ -155,27 +155,6 @@ final class HousekeepingController
         json_response(['ok' => true, 'message' => count($apartments) === 1
             ? "Apartamentul {$apartments[0]} a fost alocat către $to."
             : count($apartments) . " apartamente alocate către $to."]);
-    }
-
-    /** POST /api/housekeeping/unassign {apartment} — removes today's pending allocation. */
-    public static function unassign(): never
-    {
-        $user = Guard::requireAccess('housekeeping', 'edit');
-        Guard::requireCsrf();
-        $apartment = self::apartmentList([(string) (request_json()['apartment'] ?? '')])[0] ?? null;
-        if ($apartment === null) {
-            json_response(['ok' => false, 'error' => 'Apartament invalid.'], 422);
-        }
-        if (self::isMaid($user)) {
-            $maid = self::maidName($user);
-            $holders = array_values(array_unique(array_column(CleaningRepository::assignmentsForDate(date('Y-m-d'))[$apartment] ?? [], 'maid')));
-            if ($holders !== [$maid]) {
-                json_response(['ok' => false, 'error' => "Apartamentul $apartment nu e alocat ție."], 403);
-            }
-        }
-        $removed = CleaningRepository::unassign($apartment, date('Y-m-d'));
-        Audit::log((int) $user['id'], 'housekeeping.assign', 'apartment', $apartment, ['unassigned' => $removed]);
-        json_response(['ok' => true, 'message' => $removed ? "Alocarea pentru $apartment a fost anulată." : 'Nu era nimic de anulat.']);
     }
 
     /** GET /api/housekeeping/active-guests — in-house guests + today's intermediate cleanings. */

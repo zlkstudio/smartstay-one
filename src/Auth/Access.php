@@ -77,9 +77,17 @@ final class Access
         return ($user['role'] ?? '') === 'maid';
     }
 
-    /** Where a user lands after login. */
+    /** Numele menajerei din cont, exact ca în cleaning_records ("Ioana"); null dacă maid_ref nu e în config. */
+    public static function maidName(array $user): ?string
+    {
+        $maids = config('maids', []);
+        $ref = (string) ($user['maid_ref'] ?? '');
+        return $ref !== '' && isset($maids[$ref]) ? (string) $maids[$ref] : null;
+    }
+
+    /** Where a user lands after login (menajera are și ea Acasă, cu propriul overview). */
     public static function homePath(array $user): string
     {
-        return $user['role'] === 'maid' ? '/housekeeping' : '/';
+        return '/';
     }
 }

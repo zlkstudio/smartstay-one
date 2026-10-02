@@ -68,7 +68,6 @@
     function card(r) {
       const on = selected.has(r.apartment);
       const canPick = pickable(r);
-      const canUnassign = CAN_EDIT && r.assigned.length && r.submissions === 0 && (!SELF || mine(r));
       const canChecklist = r.assigned.length && (!SELF || mine(r));
       const sub = r.checkOutTime ? `${icon('door')} Check-out azi · ${esc(r.checkOutTime)}` : `${icon('calendar')} Alocat azi`;
       return `<article class="card hk-card${on ? ' is-selected' : ''}${canPick ? ' is-selectable' : ''}${SELF && r.assigned.length && !mine(r) ? ' is-taken' : ''}" data-apt="${esc(r.apartment)}"
@@ -80,7 +79,6 @@
           <span class="hk-status">${status(r)}</span>
         </span>
         <span class="hk-side">
-          ${canUnassign ? `<button type="button" class="link-btn" data-unassign="${esc(r.apartment)}">${SELF ? 'Renunț' : 'Anulează'}</button>` : ''}
           ${canChecklist ? `<a class="link-btn" href="/housekeeping/checklist/${encodeURIComponent(r.apartment)}">Checklist</a>` : ''}
           ${canPick ? `<span class="pick" aria-hidden="true">${icon('check')}</span>` : ''}
         </span>
@@ -119,15 +117,6 @@
     }
 
     $list.addEventListener('click', (event) => {
-      const un = event.target.closest('[data-unassign]');
-      if (un) {
-        event.stopPropagation();
-        un.disabled = true;
-        window.ONE.api('/api/housekeeping/unassign', { method: 'POST', body: { apartment: un.dataset.unassign } })
-          .then((res) => { toast(res.message); load(); })
-          .catch((e) => { un.disabled = false; toast(e.message); });
-        return;
-      }
       if (event.target.closest('a')) return;
       const el = event.target.closest('.hk-card.is-selectable');
       if (el) togglePick(el);

@@ -48,16 +48,6 @@ final class CleaningRepository
         }
     }
 
-    /** Removes the pending assignment of one apartment for a day (fixing a wrong tap). */
-    public static function unassign(string $apartment, string $date): int
-    {
-        $stmt = self::db()->prepare(
-            "DELETE FROM maid_assignments WHERE apartment_number = ? AND assignment_date = ? AND status = 'pending'"
-        );
-        $stmt->execute([$apartment, $date]);
-        return $stmt->rowCount();
-    }
-
     /** @return array<string, list<array{maid:string,status:string}>> apartment => assignments */
     public static function assignmentsForDate(string $date): array
     {

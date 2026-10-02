@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
 > **Ultima actualizare**: 2 octombrie 2026 (21:45)
-> **Versiune**: 1.3.3 (Menajeră: + Rezervări citire, Inventar, Rapoarte doar curățeniile ei) · 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
+> **Versiune**: 1.3.4 (Menajeră: Acasă cu overview; alocările nu se mai pot anula) · 1.3.3 (Menajeră: + Rezervări citire, Inventar, Rapoarte doar curățeniile ei) · 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -113,10 +113,12 @@ Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
 - **view**: vede listele; toggle-uri, Nuki, „Trimis" WhatsApp, alocări și checklist sunt blocate (API → 403).
 - **edit**: tot ce făcea app-ul vechi.
 - **Menajera** (din 1.2.1): vede check-out-urile de azi **fără numele oaspeților**, își preia apartamentele libere
-  („Preiau") și renunță doar la ale ei, încă nefăcute. Serverul refuză alocarea pe altă menajeră, un apartament deja luat
+  („Preiau"). Din 1.3.4 o alocare **nu se mai poate anula** din ONE (nici de menajeră, nici de staff). Serverul refuză alocarea pe altă menajeră, un apartament deja luat
   sau unul fără check-out azi. Checklist doar pentru apartamentele ei. `/housekeeping/intermediate` → 403.
-- **Menajera** (din 1.3.3): are bara de navigare (Rezervări · Curățenie · Inventar · Rapoarte, fără Acasă — aterizează tot pe
-  Curățenie). Rezervări = **view** (vede lista, inclusiv numele oaspeților; fără toggle-uri / Nuki / „Trimis").
+- **Menajera** (din 1.3.3/1.3.4): are bara de navigare (Acasă · Rezervări · Curățenie · Inventar · Rapoarte) și aterizează pe
+  **Acasă** = overview propriu (`views/pages/home-maid.php`): ale ei azi (făcute / de făcut, „Prioritar" dacă sosește cineva
+  în aceeași zi), libere de preluat, check-out-urile de mâine cu sosirile din aceeași zi, curățeniile + totalul săptămânii,
+  lenjerii pe roșu. Fără nume de oaspeți; Previo din `Stays` (cache 5 min). Rezervări = **view** (vede lista, inclusiv numele oaspeților; fără toggle-uri / Nuki / „Trimis").
   Inventar = **edit** (+/−, Necesar, verso). Rapoarte: `/reports` → redirect la `/reports/payments` = „Curățeniile mele",
   filtrat în SQL după `maid_name` din `maid_ref`; fără „Checklist x2", fără „tarif implicit", fără tab-uri, WhatsApp sau
   adăugare/ștergere. `/api/reports/today` → 403.
@@ -262,7 +264,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 
 ### Housekeeping (`/housekeeping`, `/housekeeping/intermediate`, `/housekeeping/checklist/{apt}`)
 - **Check-out** (staff): apartamentele cu check-out azi (fără parcări), status per apartament
-  (Nealocat / menajera / Checklist trimis / Finalizat), selectare multiplă → buton menajeră, „Anulează" alocarea.
+  (Nealocat / menajera / Checklist trimis / Finalizat), selectare multiplă → buton menajeră. Alocarea nu se poate anula (scos în 1.3.4).
   Un apartament aparține unei singure menajere pe zi (realocarea mută rândul *pending*).
 - **Intermediară**: oaspeții cazați acum, 30 RON fix, `cleaning_type = 'intermediate'`.
 - **Menajera**: lista ei de azi → checklist (secțiuni + sarcini per apartament, studiourile fără Living),
@@ -376,7 +378,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 **Rute**: `/`, `/reservations[/tomorrow|/whatsapp|/link]`, `/housekeeping[/intermediate|/checklist/{apt}]`,
 `/inventory`, `/reports[/payments]`, `/users`, `/settings`, `/account`
 **API**: `GET /api/reservations/{list,recent,whatsapp}` · `POST /api/reservations/{status,nuki,whatsapp}` ·
-`GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,unassign,intermediate,checklist}` ·
+`GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,intermediate,checklist}` ·
 `GET /api/inventory/occupancy` · `POST /api/inventory/{adjust,note,batch,tech}` · `GET /api/reports/today` · `POST /api/reports/{refresh,cleaning,cleaning/delete}`
 **Design**: Jost, `#2563eb` / `#1a6fce` (Rezervări), violet `#7c3aed` (Housekeeping), indigo `#4f46e5` (Inventar), teal `#0d9488` (Rapoarte), radius 16 / 12, dark mode.
 

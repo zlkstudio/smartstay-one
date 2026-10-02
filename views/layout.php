@@ -11,9 +11,7 @@ $isMaid = $user && $user['role'] === 'maid';
 
 $navItems = [];
 if ($user && !(int) $user['must_change_password']) {
-    if (!$isMaid) {   // Menajera nu are Acasă: aterizează pe Curățenie.
-        $navItems[] = ['key' => 'home', 'href' => '/', 'label' => 'Acasă', 'icon' => 'home'];
-    }
+    $navItems[] = ['key' => 'home', 'href' => '/', 'label' => 'Acasă', 'icon' => 'home'];
     foreach (Access::MODULES as $module) {
         if (Access::can($user, $module)) {
             $navItems[] = [
@@ -40,7 +38,7 @@ $showNav = count($navItems) > 1;
     <a class="icon-btn" href="<?= h($backHref) ?>" aria-label="Înapoi"><?= icon('back') ?></a>
     <div class="topbar-title"><?= h($pageTitle) ?></div>
   <?php else: ?>
-    <a href="<?= $isMaid ? '/housekeeping' : '/' ?>" class="logo" aria-label="SmartStay ONE — Acasă">
+    <a href="/" class="logo" aria-label="SmartStay ONE — Acasă">
       <?= logo() ?>
     </a>
     <div class="topbar-title"></div>

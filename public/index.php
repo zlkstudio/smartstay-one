@@ -93,7 +93,6 @@ $router->get('/housekeeping/intermediate', static fn() => HousekeepingController
 $router->get('/housekeeping/checklist/{apartment}', static fn(array $p) => HousekeepingController::checklist($p));
 $router->get('/api/housekeeping/checkouts', static fn() => HousekeepingController::checkouts());
 $router->post('/api/housekeeping/assign', static fn() => HousekeepingController::assign());
-$router->post('/api/housekeeping/unassign', static fn() => HousekeepingController::unassign());
 $router->get('/api/housekeeping/active-guests', static fn() => HousekeepingController::activeGuests());
 $router->post('/api/housekeeping/intermediate', static fn() => HousekeepingController::createIntermediate());
 $router->post('/api/housekeeping/checklist', static fn() => HousekeepingController::submitChecklist());

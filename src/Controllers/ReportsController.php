@@ -348,13 +348,12 @@ final class ReportsController
     /** Numele menajerei din cont, așa cum e scris în cleaning_records ("Ioana"). */
     private static function ownMaidName(array $user): string
     {
-        $maids = config('maids', []);
-        $ref = (string) ($user['maid_ref'] ?? '');
-        if ($ref === '' || !isset($maids[$ref])) {
-            error_log("[ONE] maid user {$user['id']} has unknown maid_ref '$ref'");
+        $name = Access::maidName($user);
+        if ($name === null) {
+            error_log("[ONE] maid user {$user['id']} has unknown maid_ref '" . ($user['maid_ref'] ?? '') . "'");
             Guard::forbidden($user);
         }
-        return (string) $maids[$ref];
+        return $name;
     }
 
     private static function date(string $value): ?string
