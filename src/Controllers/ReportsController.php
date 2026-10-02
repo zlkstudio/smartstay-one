@@ -10,7 +10,6 @@ use One\Housekeeping\CleaningRepository;
 use One\Http\Guard;
 use One\Inventory\InventoryRepository;
 use One\Reports\MaidPayments;
-use One\Properties;
 use One\Reports\Analytics;
 use One\Reports\OperationsReport;
 use One\Reports\Period;
@@ -83,15 +82,6 @@ final class ReportsController
         $roster = $report['roster']['apartments'] ?? [];
         $stays = Stays::between($period->earliest(), $period->latest());
 
-        $excluded = [];
-        foreach ($stays as $s) {
-            if (Properties::isReportExcluded($s['apartment'])) {
-                $excluded[$s['apartment']] = true;
-            }
-        }
-        $excluded = array_keys($excluded);
-        natsort($excluded);
-
         $a = new Analytics($stays, $roster, substr($period->earliest(), 0, 4) . '-01-01', OperationsReport::vatRate());
         $last30 = [date('Y-m-d', strtotime('-29 days')), $today];
         $wide = $period->isToday() ? $last30 : [$period->from, $period->to];
@@ -112,7 +102,7 @@ final class ReportsController
 
         $apartments = $a->apartments($period->from, $period->to);
         $details = [];
-        foreach ($roster as $apt) {
+        foreach ($a->activeApartments() as $apt) {
             $details[$apt] = $a->apartmentDetail($apt, $today);
         }
 
@@ -127,12 +117,10 @@ final class ReportsController
             'apartments' => $apartments,
             'details'    => $details,
             'monthly'    => $a->monthly((int) date('Y'), $today),
-            'movement'   => $a->movement($wide[0], $wide[1]),
+            'weekdays'   => $a->weekdays($wide[0], $wide[1]),
+            'stayLength' => $a->lengthOfStay($wide[0], $wide[1]),
             'guests'     => $a->guests($period->from, $period->to),
-            'unpriced'   => $a->unpricedCount(),
             'vatRemoved' => $a->vatRemoved(),
-            'roster'     => $roster,
-            'excluded'   => array_values($excluded),
             'today'      => $today,
         ];
     }

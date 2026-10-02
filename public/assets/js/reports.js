@@ -73,15 +73,16 @@
   }
 
   function initBars() {
-    const bars = root.querySelector('[data-bars]');
-    const tip = root.querySelector('[data-chart-tip]');
-    if (!bars || !tip) return;
-    bars.addEventListener('click', (event) => {
-      const bar = event.target.closest('.bar');
-      if (!bar) return;
-      bars.querySelectorAll('.bar.is-selected').forEach((b) => b.classList.remove('is-selected'));
-      bar.classList.add('is-selected');
-      tip.textContent = bar.dataset.tip;
+    root.querySelectorAll('[data-bars]').forEach((bars) => {
+      const tip = bars.parentElement.querySelector('[data-chart-tip]');
+      if (!tip) return;
+      bars.addEventListener('click', (event) => {
+        const bar = event.target.closest('.bar');
+        if (!bar) return;
+        bars.querySelectorAll('.bar.is-selected').forEach((b) => b.classList.remove('is-selected'));
+        bar.classList.add('is-selected');
+        tip.textContent = bar.dataset.tip;
+      });
     });
   }
 

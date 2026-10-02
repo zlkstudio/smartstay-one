@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
 > **Ultima actualizare**: 2 octombrie 2026 (21:45)
-> **Versiune**: 1.3.0 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
+> **Versiune**: 1.3.1 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -293,14 +293,15 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 - **Plata menajerelor**: implicit săptămâna trecută (L–D), plus săptămâna/luna curentă/trecută și interval liber (max. 93 zile). Tarif recalculat la fiecare afișare din `src/Housekeeping/Rates.php`; „✓✓ Checklist x2" doar aici; intermediare cu chip violet. Edit: adăugare manuală (menajeră, apartament, dată, tip) și ștergere — ambele în `audit_log`. „Copiază rezumatul" per menajeră (pentru WhatsApp).
 - **Acasă**: cardul „Azi" (din același cache, max. 15 min) + „N apartamente cu lenjerii pe roșu" pentru cine are Inventar.
 
-### Rapoarte · Prezentare extinsă (1.3.0)
-- Selector de perioadă sticky: Azi · 7 zile · 30 zile · Luna asta (toată luna + MTD) · Luna trecută · Anul ăsta · Interval (`?p=` sau `?from=&to=`). Perioada e un singur parametru (`src/Reports/Period.php`).
-- Toate cifrele vin din `src/Reports/Analytics.php` (singurul modul de agregare): ocupare, ADR, RevPAR, venit, canale (rezervări / nopți / venit), per apartament (+ sheet cu 30 zile, luna trecută, luna asta, YTD), trend lunar, sosiri pe zi, oaspeți pe țări.
-- Istoric: `Stays::year()` — check-in-uri de la 2 noiembrie anul anterior la 31 decembrie, în bucăți de 3 luni, cache `storage/cache/history-v1-{an}.json` (1 h anul curent, 24 h anii trecuți). Cronul orar îl reîncălzește.
+### Rapoarte · Prezentare extinsă (1.3.x)
+- Selector de perioadă sticky: Azi · 7 zile · 30 zile · Luna asta (toată luna + până azi) · Luna trecută · Anul ăsta · Interval (`?p=` sau `?from=&to=`). Un singur parametru: `src/Reports/Period.php`.
+- Toate cifrele vin din `src/Reports/Analytics.php` (singurul modul de agregare).
+- Secțiuni: Operațional azi · Indicatori (ocupare, ADR, RevPAR, venit + comparație) · Ocupare · Venit · Canale (rezervări / nopți / venit) · ADR pe canal · Ocupare pe zile ale săptămânii · Durata șederilor · Apartamente (sortate după venit, tap → detalii) · Trend lunar (venit + ocupare, ADR + RevPAR, tabel) · Oaspeți.
+- Doar date care vin din Previo: fără TRevPAR / TRevPP, anulări sau rezervări create (API-ul nu le trimite), fără texte explicative pe pagină.
+- 40 și Daily nu se numără niciodată. Fiecare apartament intră în calcul de la prima noapte rezervată (ex. 33 din august); apartamentele fără ocupare în perioadă nu apar la „Apartamente”.
 - Opțiunile (statusId 1) = rezervări plătite cash la check-out → intră peste tot.
-- Venit = `reservation/price` împărțit pe nopți (day-use: pe ziua de check-in). TVA: `reports.vat_rate` în `config/app.php`. Calibrare: `php bin/report-check.php`.
-- Lipsesc (spus pe pagină): TRevPAR / TRevPP (conturile camerelor nu vin prin searchReservations), anulări (nu sunt returnate), data creării (dacă Previo n-o trimite).
-- Previo numără 13 unități (11 + 40 + Daily); ONE 11 → procentele diferă ușor, pagina o spune.
+- Venit = `reservation/price` împărțit pe nopți (day-use: pe ziua de check-in). TVA: `reports.vat_rate` în `config/app.php`. Verificare: `php bin/report-check.php`.
+- Istoric: `Stays::year()` — check-in-uri 2 nov anul anterior → 31 dec, în bucăți de 3 luni, cache `storage/cache/history-v1-{an}.json` (1 h / 24 h); cronul orar îl reîncălzește.
 
 ### Diferențe intenționate (Etapa 3)
 - Apartamentele fără tarif apar marcate **„tarif implicit"** + avertizare sus (vechiul le plătea tăcut cu 60 RON). Totalul rămâne identic cu raportul vechi.

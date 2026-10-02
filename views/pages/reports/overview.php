@@ -106,34 +106,46 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
 
   <?php if ($page): $k = $page['kpis']; $c = $page['compare']; $vs = $page['compare'] ? $period->compareLabel : ''; ?>
 
-    <!-- 2 · KPI financiare -->
+    <!-- 2 · Indicatori -->
     <h2 class="section-title">Indicatori · <?= h($period->label) ?></h2>
     <div class="kpi-grid">
       <div class="kpi"><span class="kpi-value tabular"><?= h($pct($k['occupancy'])) ?></span><span class="kpi-label">Ocupare</span><?= $delta($k['occupancy'], $c['occupancy'] ?? null, $vs, true) ?></div>
       <div class="kpi"><span class="kpi-value tabular"><?= h($lei($k['adr'], 1)) ?></span><span class="kpi-label">ADR</span><?= $delta($k['adr'], $c['adr'] ?? null, $vs) ?></div>
       <div class="kpi"><span class="kpi-value tabular"><?= h($lei($k['revpar'], 1)) ?></span><span class="kpi-label">RevPAR</span><?= $delta($k['revpar'], $c['revpar'] ?? null, $vs) ?></div>
-      <div class="kpi"><span class="kpi-value tabular"><?= h($lei($k['revenue'])) ?></span><span class="kpi-label">Venit cazare<?= $page['vatRemoved'] ? ', fără TVA' : '' ?></span><?= $delta($k['revenue'], $c['revenue'] ?? null, $vs) ?></div>
+      <div class="kpi"><span class="kpi-value tabular"><?= h($lei($k['revenue'])) ?></span><span class="kpi-label">Venit<?= $page['vatRemoved'] ? ' fără TVA' : '' ?></span><?= $delta($k['revenue'], $c['revenue'] ?? null, $vs) ?></div>
     </div>
     <div class="kpi-secondary tabular">
       <span><strong><?= (int) $k['occupied'] ?></strong> nopți ocupate</span>
       <span><strong><?= (int) $k['available'] ?></strong> disponibile</span>
       <span><strong><?= (int) $k['guestNights'] ?></strong> <?= $k['nights'] === 1 ? 'oaspeți' : 'înnoptări oaspeți' ?></span>
-      <span title="Nevoie de conturile camerelor (extra, taxă oraș) — nu vin prin searchReservations">TRevPAR <strong>n/d</strong></span>
-      <span title="Nevoie de conturile camerelor (extra, taxă oraș) — nu vin prin searchReservations">TRevPP <strong>n/d</strong></span>
+      <?php if ($page['mtd']): $m = $page['mtd']; ?>
+        <span>Până azi: <strong><?= h($pct($m['occupancy'])) ?></strong> · ADR <strong><?= h($lei($m['adr'], 1)) ?></strong> · <strong><?= h($lei($m['revenue'])) ?></strong></span>
+      <?php endif; ?>
     </div>
-    <?php if ($page['mtd']): $m = $page['mtd']; ?>
-      <p class="hint">Până azi (MTD): ocupare <?= h($pct($m['occupancy'])) ?> · ADR <?= h($lei($m['adr'], 1)) ?> · RevPAR <?= h($lei($m['revpar'], 1)) ?> · venit <?= h($lei($m['revenue'])) ?>. Cifrele mari includ și nopțile deja rezervate până la final de lună.</p>
-    <?php endif; ?>
-    <p class="hint">
-      Venitul = prețul rezervării din Previo, împărțit pe nopți<?= $page['vatRemoved'] ? ', fără TVA' : ' (așa cum vine din Previo; TVA-ul se scade setând reports → vat_rate în config/app.php)' ?>.
-      TRevPAR / TRevPP lipsesc: au nevoie de conturile camerelor, pe care API-ul de rezervări nu le trimite.
-      <?php if ($page['unpriced'] > 0): ?><?= (int) $page['unpriced'] ?> rezervări nu au preț în Previo.<?php endif; ?>
-    </p>
 
-    <!-- 3 · Grafic ocupare -->
-    <?php $bars = $page['chart']['bars']; $weekly = count($bars) && $bars[0]['from'] !== $bars[0]['to']; ?>
+    <?php
+      $bars = $page['chart']['bars'];
+      $weekly = count($bars) && $bars[0]['from'] !== $bars[0]['to'];
+      $when = static fn(array $b): string => $b['from'] === $b['to'] ? $day($b['from']) : $day($b['from']) . ' – ' . $day($b['to']);
+      $axis = static function () use ($bars, $page, $period, $day): string {
+          if (!$bars) {
+              return '';
+          }
+          $html = '<div class="row-between faint bars-axis axis-rel"><span>' . h($day($bars[0]['from'])) . '</span>';
+          if ($period->isToday()) {
+              $ti = array_search($page['today'], array_column($bars, 'from'), true);
+              $html .= '<span class="axis-today" style="left:' . round((($ti === false ? 0 : $ti) + 0.5) * 100 / count($bars), 2) . '%">azi</span>';
+          }
+          return $html . '<span>' . h($day(end($bars)['to'])) . '</span></div>';
+      };
+      $maxRevBar = max(1.0, ...array_map(static fn(array $b): float => $b['revenue'], $bars ?: [['revenue' => 0.0]]));
+      $chartRev = array_sum(array_column($bars, 'revenue'));
+      $chartOcc = array_sum(array_column($bars, 'occupied'));
+    ?>
+
+    <!-- 3 · Ocupare -->
     <section class="rsec stack-sm">
-    <h2 class="section-title">Ocupare</h2>
+    <h2 class="section-title">Ocupare<?= $weekly ? ' · pe săptămâni' : '' ?></h2>
     <div class="card stack-sm">
       <?php if ($period->isToday()): $occ = $report['occupancy']; ?>
         <div class="row-between">
@@ -141,50 +153,59 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
           <div class="text-right"><span class="stat-value stat-value-muted tabular"><?= (int) $occ['avgNext'] ?>%</span><span class="stat-label">următoarele <?= OperationsReport::NEXT_DAYS ?> (rezervat)</span></div>
         </div>
       <?php else: ?>
-        <div><span class="stat-value tabular"><?= h($pct($k['occupancy'])) ?></span><span class="stat-label"><?= h($period->label) ?><?= $weekly ? ' · o bară pe săptămână' : '' ?></span></div>
+        <div><span class="stat-value tabular"><?= h($pct($k['occupancy'])) ?></span><span class="stat-label"><?= h($period->label) ?></span></div>
       <?php endif; ?>
       <?php if (!$bars): ?>
         <p class="muted">Nu am date Previo pentru intervalul ăsta.</p>
       <?php else: ?>
-        <div class="bars" data-bars role="img" aria-label="Ocupare pe <?= $weekly ? 'săptămâni' : 'nopți' ?>, <?= h($period->label) ?>">
+        <div class="bars" data-bars role="img" aria-label="Ocupare, <?= h($period->label) ?>">
           <?php foreach ($bars as $b):
-            $isToday = $b['from'] <= $page['today'] && $b['to'] >= $page['today'];
-            $future = $b['from'] > $page['today'];
-            $when = $b['from'] === $b['to'] ? $day($b['from']) : $day($b['from']) . ' – ' . $day($b['to']);
-            $tip = $when . ' · ' . $b['occupied'] . '/' . $b['total'] . ' nopți · ' . $pct($b['pct'], 0)
-                . ' · ADR ' . $lei($b['adr'], 1) . ' · RevPAR ' . $lei($b['revpar'], 1) . ' · venit ' . $lei($b['revenue']); ?>
-            <button type="button" class="bar<?= $future ? ' is-future' : '' ?><?= $isToday ? ' is-today' : '' ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
+            $tip = $when($b) . ' · ' . $b['occupied'] . '/' . $b['total'] . ' nopți · ' . $pct($b['pct'], 0)
+                . ' · ADR ' . $lei($b['adr'], 1) . ' · RevPAR ' . $lei($b['revpar'], 1) . ' · ' . $lei($b['revenue']); ?>
+            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
               <span style="height:<?= max(2, (int) round($b['pct'])) ?>%"></span>
             </button>
           <?php endforeach; ?>
         </div>
-        <div class="row-between faint bars-axis axis-rel">
-          <span><?= h($day($bars[0]['from'])) ?></span>
-          <?php if ($period->isToday()): $ti = array_search($page['today'], array_column($bars, 'from'), true); ?>
-            <span class="axis-today" style="left:<?= round((($ti === false ? 0 : $ti) + 0.5) * 100 / count($bars), 2) ?>%">azi</span>
-          <?php endif; ?>
-          <span><?= h($day(end($bars)['to'])) ?></span>
-        </div>
+        <?= $axis() ?>
         <p class="chart-tip tabular" data-chart-tip aria-live="polite">Atinge o bară pentru detalii.</p>
       <?php endif; ?>
-      <p class="hint">
-        Calculat pe <?= count($page['roster']) ?> apartamente<?= $report['roster']['source'] === 'config' ? ' din config/app.php → apartments' : ' cu rezervări în Previo în ultimele ~90 de zile' ?>.
-        <?php if ($page['excluded']): ?>Previo numără în plus <?= h(implode(', ', $page['excluded'])) ?>, de aceea procentele pot diferi ușor de cele din Previo.<?php endif; ?>
-      </p>
     </div>
     </section>
 
-    <!-- 4 · Canale -->
-    <?php $ch = $page['channels']; ?>
+    <!-- 4 · Venit -->
+    <section class="rsec stack-sm">
+    <h2 class="section-title">Venit<?= $weekly ? ' · pe săptămâni' : ' · pe nopți' ?></h2>
+    <div class="card stack-sm">
+      <div class="row-between">
+        <div><span class="stat-value tabular"><?= h($lei($chartRev)) ?></span><span class="stat-label"><?= $period->isToday() ? '30 de nopți în urmă + 14 rezervate' : h($period->label) ?></span></div>
+        <div class="text-right"><span class="stat-value stat-value-muted tabular"><?= h($lei($chartOcc ? $chartRev / $chartOcc : null)) ?></span><span class="stat-label">ADR mediu</span></div>
+      </div>
+      <?php if ($bars): ?>
+        <div class="bars bars-blue" data-bars role="img" aria-label="Venit, <?= h($period->label) ?>">
+          <?php foreach ($bars as $b):
+            $tip = $when($b) . ' · venit ' . $lei($b['revenue']) . ' · ADR ' . $lei($b['adr'], 1) . ' · ' . $b['occupied'] . ' nopți'; ?>
+            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
+              <span style="height:<?= max(2, (int) round($b['revenue'] * 100 / $maxRevBar)) ?>%"></span>
+            </button>
+          <?php endforeach; ?>
+        </div>
+        <?= $axis() ?>
+        <p class="chart-tip tabular" data-chart-tip aria-live="polite">Atinge o bară pentru detalii.</p>
+      <?php endif; ?>
+    </div>
+    </section>
+
+    <!-- 5 · Canale -->
+    <?php $ch = $page['channels'];
+      $rows = array_filter($ch['rows'], static fn(array $r): bool => $r['reservations'] > 0);
+      uasort($rows, static fn(array $x, array $y): int => $y['reservations'] <=> $x['reservations']); ?>
     <section class="rsec stack-sm">
     <h2 class="section-title">Canale · <?= h($page['wide']['label']) ?></h2>
     <div class="card stack-sm" data-channels>
       <?php if ($ch['total'] === 0): ?>
         <p class="muted">Niciun check-in în perioada asta.</p>
-      <?php else:
-        $rows = array_filter($ch['rows'], static fn(array $r): bool => $r['reservations'] > 0);
-        uasort($rows, static fn(array $x, array $y): int => $y['reservations'] <=> $x['reservations']);
-      ?>
+      <?php else: ?>
         <div class="segmented" role="radiogroup" aria-label="Metrica pentru canale">
           <?php foreach (['reservations' => 'Rezervări', 'nights' => 'Nopți', 'revenue' => 'Venit'] as $m => $label): ?>
             <input type="radio" name="ch-metric" id="ch-<?= $m ?>" value="<?= $m ?>"<?= $m === 'reservations' ? ' checked' : '' ?> data-channel-metric>
@@ -200,35 +221,106 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
               <li data-color="<?= h(OperationsReport::CHANNELS[$key]['color']) ?>" data-reservations="<?= (int) $row['reservations'] ?>" data-nights="<?= (int) $row['nights'] ?>" data-revenue="<?= h((string) round($row['revenue'], 2)) ?>">
                 <span class="swatch" style="background:<?= h(OperationsReport::CHANNELS[$key]['color']) ?>"></span>
                 <span class="grow"><span class="list-title"><?= h(OperationsReport::CHANNELS[$key]['label']) ?></span>
-                  <span class="list-sub tabular"><?= (int) $row['reservations'] ?> rez. · <?= (int) $row['nights'] ?> nopți · ADR <?= h($lei($row['adr'])) ?> · <?= h($lei($row['revenue'])) ?></span></span>
+                  <span class="list-sub tabular"><?= (int) $row['reservations'] ?> rez. · <?= (int) $row['nights'] ?> nopți · <?= h($lei($row['revenue'])) ?></span></span>
                 <strong class="tabular" data-share></strong>
               </li>
             <?php endforeach; ?>
           </ul>
         </div>
-        <p class="hint">Canalul e citit din câmpurile și notele Previo; ce nu poate fi identificat apare la „Direct / altele". Rezervările se numără după data de check-in.</p>
       <?php endif; ?>
     </div>
     </section>
 
-    <!-- 5 · Per apartament -->
-    <h2 class="section-title">Per apartament · <?= h($period->label) ?></h2>
-    <div class="card apt-table" data-apt-table>
-      <div class="apt-row apt-head" aria-hidden="true">
-        <span>Ap.</span><span>Ocupare</span><span class="desk">Nopți</span><span class="desk">ADR</span><span class="desk">RevPAR</span><span class="text-right">Venit</span><span class="desk">Canal principal</span>
+    <!-- 6 · ADR pe canal -->
+    <?php $adrRows = array_filter($rows, static fn(array $r): bool => $r['adr'] !== null);
+      uasort($adrRows, static fn(array $x, array $y): int => $y['adr'] <=> $x['adr']);
+      $maxAdr = max(1.0, ...array_values(array_map(static fn(array $r): float => (float) $r['adr'], $adrRows ?: [['adr' => 0.0]]))); ?>
+    <section class="rsec stack-sm">
+    <h2 class="section-title">ADR pe canal · <?= h($page['wide']['label']) ?></h2>
+    <div class="card">
+      <?php if (!$adrRows): ?>
+        <p class="muted">Nu am date Previo pentru intervalul ăsta.</p>
+      <?php else: ?>
+        <ul class="hbars">
+          <?php foreach ($adrRows as $key => $row): ?>
+            <li>
+              <span class="hbar-label"><?= h(OperationsReport::CHANNELS[$key]['label']) ?></span>
+              <span class="hbar-track"><span style="width:<?= round($row['adr'] * 100 / $maxAdr, 1) ?>%;background:<?= h(OperationsReport::CHANNELS[$key]['color']) ?>"></span></span>
+              <strong class="hbar-value tabular"><?= h($lei($row['adr'])) ?></strong>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+    </section>
+
+    <!-- 7 · Zile ale săptămânii -->
+    <?php $wk = $page['weekdays']; $bestWk = max(array_column($wk, 'pct') ?: [0]); ?>
+    <section class="rsec stack-sm">
+    <h2 class="section-title">Ocupare pe zile · <?= h($page['wide']['label']) ?></h2>
+    <div class="card stack-sm">
+      <div class="wk-bars" role="img" aria-label="Ocupare pe zilele săptămânii">
+        <?php foreach ($wk as $w): ?>
+          <div class="wk<?= $w['pct'] > 0 && $w['pct'] === $bestWk ? ' is-best' : '' ?>" title="<?= h($w['label'] . ' · ' . $w['occupied'] . '/' . $w['total'] . ' nopți · ADR ' . $lei($w['adr'], 1)) ?>">
+            <span class="wk-pct tabular"><?= h($pct($w['pct'], 0)) ?></span>
+            <span class="wk-col"><span style="height:<?= max(2, (int) round($w['pct'])) ?>%"></span></span>
+            <span class="wk-label"><?= h($w['label']) ?></span>
+            <span class="wk-adr tabular"><?= h($num($w['adr'])) ?></span>
+          </div>
+        <?php endforeach; ?>
       </div>
-      <?php foreach ($page['apartments'] as $row): $ak = $row['kpis']; ?>
-        <button type="button" class="apt-row" data-apt="<?= h($row['apartment']) ?>" aria-label="Detalii apartament <?= h($row['apartment']) ?>">
-          <span class="apt-no tabular"><?= h($row['apartment']) ?></span>
-          <span class="occ-cell"><span class="occ-track"><span style="width:<?= (int) round($ak['occupancy'] ?? 0) ?>%"></span></span><span class="tabular"><?= h($pct($ak['occupancy'], 0)) ?></span></span>
-          <span class="desk tabular"><?= (int) $ak['occupied'] ?></span>
-          <span class="desk tabular"><?= h($lei($ak['adr'])) ?></span>
-          <span class="desk tabular"><?= h($lei($ak['revpar'])) ?></span>
-          <span class="tabular text-right-m"><?= h($lei($ak['revenue'])) ?></span>
-          <span class="desk"><?= $row['channel'] ? h($channel($row['channel'])) : '—' ?></span>
-          <span class="mob-sub tabular"><?= h($nopti((int) $ak['occupied'])) ?> · ADR <?= h($lei($ak['adr'])) ?> · RevPAR <?= h($lei($ak['revpar'])) ?><?= $row['channel'] ? ' · ' . h($channel($row['channel'])) : '' ?></span>
-        </button>
-      <?php endforeach; ?>
+      <p class="faint wk-foot">Sub fiecare zi: ADR în Lei</p>
+    </div>
+    </section>
+
+    <!-- 8 · Durata șederilor -->
+    <?php $los = $page['stayLength']; $maxLos = max(1, ...array_values($los['buckets'])); ?>
+    <section class="rsec stack-sm">
+    <h2 class="section-title">Durata șederilor · <?= h($page['wide']['label']) ?></h2>
+    <div class="card stack-sm">
+      <?php if ($los['reservations'] === 0): ?>
+        <p class="muted">Nu am date Previo pentru intervalul ăsta.</p>
+      <?php else: ?>
+        <div class="row-between">
+          <div><span class="stat-value tabular"><?= h($num($los['average'], 1)) ?></span><span class="stat-label">nopți în medie</span></div>
+          <div class="text-right"><span class="stat-value stat-value-muted tabular"><?= (int) $los['reservations'] ?></span><span class="stat-label">rezervări</span></div>
+        </div>
+        <ul class="hbars">
+          <?php foreach ($los['buckets'] as $label => $n): if ($label === 'câteva ore' && $n === 0) continue; ?>
+            <li>
+              <span class="hbar-label"><?= h(is_numeric($label) || str_contains($label, '–') || str_contains($label, '+') ? $label . ((string) $label === '1' ? ' noapte' : ' nopți') : $label) ?></span>
+              <span class="hbar-track"><span style="width:<?= round($n * 100 / $maxLos, 1) ?>%"></span></span>
+              <strong class="hbar-value tabular"><?= (int) $n ?></strong>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+    </section>
+
+    <!-- 9 · Apartamente -->
+    <?php $aptRows = $page['apartments']; $maxAptRev = max(1.0, ...array_map(static fn(array $r): float => $r['kpis']['revenue'], $aptRows ?: [['kpis' => ['revenue' => 0.0]]])); ?>
+    <h2 class="section-title">Apartamente · <?= h($period->label) ?></h2>
+    <div class="card apt-table" data-apt-table>
+      <?php if (!$aptRows): ?>
+        <p class="muted apt-empty">Niciun apartament ocupat în perioada asta.</p>
+      <?php else: ?>
+        <div class="apt-row apt-head" aria-hidden="true">
+          <span>Ap.</span><span>Venit</span><span class="desk">Ocupare</span><span class="desk">Nopți</span><span class="desk">ADR</span><span class="desk">RevPAR</span><span class="desk">Canal principal</span>
+        </div>
+        <?php foreach ($aptRows as $row): $ak = $row['kpis']; ?>
+          <button type="button" class="apt-row" data-apt="<?= h($row['apartment']) ?>" aria-label="Detalii apartament <?= h($row['apartment']) ?>">
+            <span class="apt-no tabular"><?= h($row['apartment']) ?></span>
+            <span class="occ-cell"><span class="occ-track rev-track"><span style="width:<?= round($ak['revenue'] * 100 / $maxAptRev, 1) ?>%"></span></span><strong class="tabular"><?= h($lei($ak['revenue'])) ?></strong></span>
+            <span class="desk tabular"><?= h($pct($ak['occupancy'], 0)) ?></span>
+            <span class="desk tabular"><?= (int) $ak['occupied'] ?></span>
+            <span class="desk tabular"><?= h($lei($ak['adr'])) ?></span>
+            <span class="desk tabular"><?= h($lei($ak['revpar'])) ?></span>
+            <span class="desk"><?= $row['channel'] ? h($channel($row['channel'])) : '—' ?></span>
+            <span class="mob-sub tabular">ocupare <?= h($pct($ak['occupancy'], 0)) ?> · <?= h($nopti((int) $ak['occupied'])) ?> · ADR <?= h($lei($ak['adr'])) ?><?= $row['channel'] ? ' · ' . h($channel($row['channel'])) : '' ?></span>
+          </button>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
 
     <?php foreach ($page['details'] as $apt => $d): ?>
@@ -238,7 +330,7 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
           <button type="button" class="icon-btn" data-sheet-close aria-label="Închide"><?= icon('x') ?></button>
         </div>
         <div class="sheet-windows">
-          <?php foreach ($d['windows'] as $label => $w): ?>
+          <?php foreach ($d['windows'] as $label => $w): if ($w['total'] === 0) continue; ?>
             <div class="sheet-window">
               <span class="label"><?= h($label) ?></span>
               <div class="sheet-kpis tabular">
@@ -254,10 +346,8 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
         <div class="mini-bars" role="img" aria-label="Nopți ocupate în ultimele 30">
           <?php foreach ($d['nights'] as $n): ?><span class="<?= $n['occupied'] ? 'is-on' : '' ?>" title="<?= h($day($n['date']) . ($n['occupied'] ? ' · ocupat' : ' · liber')) ?>"></span><?php endforeach; ?>
         </div>
-        <span class="label">Ultimele rezervări</span>
-        <?php if (!$d['recent']): ?>
-          <p class="muted">Nicio rezervare în istoricul încărcat.</p>
-        <?php else: ?>
+        <?php if ($d['recent']): ?>
+          <span class="label">Ultimele rezervări</span>
           <ul class="sheet-list">
             <?php foreach ($d['recent'] as $r): ?>
               <li>
@@ -272,37 +362,56 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
       </template>
     <?php endforeach; ?>
 
-    <!-- 6 · Trend lunar -->
+    <!-- 10 · Trend lunar -->
     <?php
       $mo = $page['monthly'];
-      $maxRev = max(1.0, ...array_map(static fn(array $m): float => $m['kpis']['revenue'], $mo['months']));
-      $W = 360; $H = 150; $pad = 18; $colW = ($W - 2 * $pad) / 12;
-      $points = [];
-      foreach ($mo['months'] as $i => $m) {
-          $x = $pad + $colW * ($i + 0.5);
-          $points[] = round($x, 1) . ',' . round($H - 20 - (($m['kpis']['occupancy'] ?? 0) / 100) * ($H - 34), 1);
-      }
+      $active = array_values(array_filter($mo['months'], static fn(array $m): bool => $m['kpis']['total'] > 0));
+      $W = 360; $H = 150; $pad = 18; $cnt = max(1, count($active)); $colW = ($W - 2 * $pad) / $cnt;
+      $maxRev = max(1.0, ...array_map(static fn(array $m): float => $m['kpis']['revenue'], $active ?: [['kpis' => ['revenue' => 0.0]]]));
+      $maxMoney = max(1.0, ...array_map(static fn(array $m): float => (float) ($m['kpis']['adr'] ?? 0), $active ?: [['kpis' => ['adr' => 0.0]]]));
+      $xAt = static fn(int $i): float => $pad + $colW * ($i + 0.5);
+      $line = static function (string $key, float $max) use ($active, $xAt, $H): string {
+          $pts = [];
+          foreach ($active as $i => $m) {
+              $pts[] = round($xAt($i), 1) . ',' . round($H - 20 - (((float) ($m['kpis'][$key] ?? 0)) / $max) * ($H - 34), 1);
+          }
+          return implode(' ', $pts);
+      };
     ?>
     <h2 class="section-title">Trend lunar · <?= (int) date('Y') ?></h2>
-    <div class="card stack-sm">
-      <div class="row faint trend-legend"><span><i class="lg-col"></i>venit</span><span><i class="lg-line"></i>ocupare %</span></div>
-      <svg class="trend" viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="Venit lunar (coloane) și ocupare (linie), <?= (int) date('Y') ?>">
-        <?php foreach ($mo['months'] as $i => $m):
-          $h = ($m['kpis']['revenue'] / $maxRev) * ($H - 34);
-          $x = $pad + $colW * $i + 3; ?>
-          <rect class="trend-col<?= $m['current'] ? ' is-current' : '' ?>" x="<?= round($x, 1) ?>" y="<?= round($H - 20 - $h, 1) ?>" width="<?= round($colW - 6, 1) ?>" height="<?= round(max(0, $h), 1) ?>" rx="3">
-            <title><?= h(Period::monthShort($m['month']) . ': ' . $lei($m['kpis']['revenue']) . ' · ' . $pct($m['kpis']['occupancy'])) ?></title>
-          </rect>
-          <text class="trend-axis" x="<?= round($pad + $colW * ($i + 0.5), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
-        <?php endforeach; ?>
-        <polyline class="trend-line" points="<?= h(implode(' ', $points)) ?>"/>
-        <?php foreach ($points as $pt): [$px, $py] = explode(',', $pt); ?><circle class="trend-dot" cx="<?= h($px) ?>" cy="<?= h($py) ?>" r="2.6"/><?php endforeach; ?>
-      </svg>
+    <div class="trend-grid">
+      <div class="card stack-sm">
+        <div class="row faint trend-legend"><span><i class="lg-col"></i>venit</span><span><i class="lg-line"></i>ocupare %</span></div>
+        <svg class="trend" viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="Venit lunar și ocupare">
+          <?php foreach ($active as $i => $m): $h = ($m['kpis']['revenue'] / $maxRev) * ($H - 34); ?>
+            <rect class="trend-col<?= $m['current'] ? ' is-current' : '' ?>" x="<?= round($pad + $colW * $i + 3, 1) ?>" y="<?= round($H - 20 - $h, 1) ?>" width="<?= round(max(2, $colW - 6), 1) ?>" height="<?= round(max(0, $h), 1) ?>" rx="3">
+              <title><?= h(Period::monthShort($m['month']) . ': ' . $lei($m['kpis']['revenue']) . ' · ' . $pct($m['kpis']['occupancy'])) ?></title>
+            </rect>
+            <text class="trend-axis" x="<?= round($xAt($i), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
+          <?php endforeach; ?>
+          <polyline class="trend-line" points="<?= h($line('occupancy', 100.0)) ?>"/>
+        </svg>
+      </div>
+      <div class="card stack-sm">
+        <div class="row faint trend-legend"><span><i class="lg-line"></i>ADR</span><span><i class="lg-line lg-teal"></i>RevPAR</span></div>
+        <svg class="trend" viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="ADR și RevPAR lunar">
+          <?php foreach ($active as $i => $m): ?>
+            <text class="trend-axis" x="<?= round($xAt($i), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
+          <?php endforeach; ?>
+          <polyline class="trend-line" points="<?= h($line('adr', $maxMoney)) ?>"/>
+          <polyline class="trend-line trend-line-teal" points="<?= h($line('revpar', $maxMoney)) ?>"/>
+          <?php foreach ($active as $i => $m): ?>
+            <circle class="trend-dot" cx="<?= round($xAt($i), 1) ?>" cy="<?= round($H - 20 - (((float) ($m['kpis']['adr'] ?? 0)) / $maxMoney) * ($H - 34), 1) ?>" r="2.6"><title><?= h(Period::monthShort($m['month']) . ': ADR ' . $lei($m['kpis']['adr'], 1) . ' · RevPAR ' . $lei($m['kpis']['revpar'], 1)) ?></title></circle>
+          <?php endforeach; ?>
+        </svg>
+      </div>
+    </div>
+    <div class="card">
       <div class="table-scroll">
         <table class="trend-table tabular">
           <thead><tr><th>Luna</th><th>RN</th><th>OCC</th><th>ADR</th><th>RevPAR</th><th>Venit</th></tr></thead>
           <tbody>
-            <?php foreach ($mo['months'] as $m): $mk = $m['kpis']; ?>
+            <?php foreach ($active as $m): $mk = $m['kpis']; ?>
               <tr class="<?= $m['current'] ? 'is-current' : '' ?>">
                 <th><?= h(Period::monthShort($m['month'])) ?><?= $m['partial'] ? ' <span class="badge badge-teal">parțial</span>' : '' ?></th>
                 <td><?= (int) $mk['occupied'] ?></td><td><?= h($fix($mk['occupancy'])) ?>%</td>
@@ -313,44 +422,9 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
           <tfoot><tr><th>Total</th><td><?= (int) $tt['occupied'] ?></td><td><?= h($fix($tt['occupancy'])) ?>%</td><td><?= h($fix($tt['adr'])) ?></td><td><?= h($fix($tt['revpar'])) ?></td><td><?= h($num($tt['revenue'])) ?></td></tr></tfoot>
         </table>
       </div>
-      <p class="hint">Sume în Lei. Lunile viitoare conțin doar ce e deja rezervat; luna curentă e parțială.</p>
     </div>
 
-    <!-- 7 · Mișcare rezervări -->
-    <?php
-      $mv = $page['movement'];
-      $mvDays = $mv['days'];
-      $maxA = max(1, ...array_map(static fn(array $d): int => $d['arrivals'], $mvDays ?: [['arrivals' => 0]]));
-      $n = max(1, count($mvDays) - 1);
-      $line = [];
-      foreach ($mvDays as $i => $d) {
-          $line[] = round(6 + $i * (348 / $n), 1) . ',' . round(84 - ($d['arrivals'] / $maxA) * 72, 1);
-      }
-    ?>
-    <section class="rsec stack-sm">
-    <h2 class="section-title">Mișcare rezervări · <?= h($page['wide']['label']) ?></h2>
-    <div class="card stack-sm">
-      <div class="move-stats tabular">
-        <span><strong><?= (int) $mv['arrivals'] ?></strong>sosiri</span>
-        <span><strong><?= $mv['created'] === null ? '—' : (int) $mv['created'] ?></strong>create</span>
-        <span><strong>—</strong>anulate</span>
-        <span><strong>—</strong>net</span>
-      </div>
-      <?php if (count($mvDays) > 1): ?>
-        <svg class="move" viewBox="0 0 360 90" role="img" aria-label="Sosiri pe zi">
-          <polyline class="move-area" points="6,84 <?= h(implode(' ', $line)) ?> 354,84"/>
-          <polyline class="move-line" points="<?= h(implode(' ', $line)) ?>"/>
-        </svg>
-        <div class="row-between faint bars-axis"><span><?= h($day($mvDays[0]['date'])) ?></span><span>max <?= (int) $maxA ?> sosiri/zi</span><span><?= h($day(end($mvDays)['date'])) ?></span></div>
-      <?php endif; ?>
-      <p class="hint">
-        Sosiri = rezervări cu check-in în fiecare zi.
-        <?= $mv['created'] === null ? 'Data creării nu vine în răspunsul Previo, deci „create" nu se poate calcula. ' : '' ?>Anulările nu sunt trimise deloc de API-ul de rezervări Previo, așa că „anulate" și „net" lipsesc.
-      </p>
-    </div>
-    </section>
-
-    <!-- 8 · Oaspeți -->
+    <!-- 11 · Oaspeți -->
     <?php $g = $page['guests']; $gTotal = max(1, $g['domestic'] + $g['foreign'] + $g['unknown']); ?>
     <section class="rsec stack-sm">
     <h2 class="section-title">Oaspeți · <?= h($period->label) ?></h2>
@@ -358,11 +432,11 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
       <?php if ($g['reservations'] === 0): ?>
         <p class="muted">Nu am date Previo pentru intervalul ăsta.</p>
       <?php else: ?>
-        <div class="move-stats tabular">
-          <span><strong><?= (int) $g['guests'] ?></strong>oaspeți</span>
-          <span><strong><?= (int) $g['reservations'] ?></strong>rezervări</span>
+        <div class="row-between">
+          <div><span class="stat-value tabular"><?= (int) $g['guests'] ?></span><span class="stat-label">oaspeți</span></div>
+          <div class="text-right"><span class="stat-value stat-value-muted tabular"><?= (int) $g['reservations'] ?></span><span class="stat-label">rezervări</span></div>
         </div>
-        <div class="mix-bar" role="img" aria-label="Domestici <?= (int) $g['domestic'] ?>, străini <?= (int) $g['foreign'] ?>, fără naționalitate <?= (int) $g['unknown'] ?>">
+        <div class="mix-bar" role="img" aria-label="Domestici <?= (int) $g['domestic'] ?>, străini <?= (int) $g['foreign'] ?>">
           <span class="mix-dom" style="width:<?= round($g['domestic'] * 100 / $gTotal, 1) ?>%"></span>
           <span class="mix-for" style="width:<?= round($g['foreign'] * 100 / $gTotal, 1) ?>%"></span>
           <span class="mix-unk" style="width:<?= round($g['unknown'] * 100 / $gTotal, 1) ?>%"></span>
@@ -370,9 +444,8 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
         <div class="row faint mix-legend tabular">
           <span><i class="mix-dom"></i>domestici <?= (int) $g['domestic'] ?></span>
           <span><i class="mix-for"></i>străini <?= (int) $g['foreign'] ?></span>
-          <span><i class="mix-unk"></i>fără naționalitate <?= (int) $g['unknown'] ?></span>
+          <?php if ($g['unknown'] > 0): ?><span><i class="mix-unk"></i>fără țară <?= (int) $g['unknown'] ?></span><?php endif; ?>
         </div>
-        <p class="hint">Din țara oaspeților înregistrați în Previo. Previo nu trimite vârsta, deci adulți / copii nu se pot separa.</p>
       <?php endif; ?>
     </div>
     </section>

@@ -356,13 +356,14 @@ button.bar:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; 
 
 /* Per apartament */
 .apt-table { padding: 6px 0; }
-.apt-row { display: grid; grid-template-columns: 52px 1fr auto; grid-template-areas: "no occ rev" "sub sub sub"; align-items: center; gap: 2px 12px;
+.apt-row { display: grid; grid-template-columns: 52px 1fr; grid-template-areas: "no occ" "sub sub"; align-items: center; gap: 2px 12px;
   width: 100%; padding: 10px 16px; background: none; border: 0; border-top: 1px solid var(--border); font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .apt-row:first-of-type, .apt-head + .apt-row { border-top: 0; }
 button.apt-row:active { background: var(--surface-2); }
 .apt-row .desk, .apt-head { display: none; }
 .apt-no { grid-area: no; font-weight: 700; font-size: 16px; }
-.occ-cell { grid-area: occ; display: flex; align-items: center; gap: 8px; font-size: 13.5px; min-width: 0; }
+.occ-cell { grid-area: occ; display: flex; align-items: center; gap: 10px; font-size: 14.5px; min-width: 0; }
+.occ-cell strong { min-width: 78px; text-align: right; }
 .occ-track { flex: 1; height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
 .occ-track > span { display: block; height: 100%; background: var(--teal); border-radius: 99px; }
 .text-right-m { grid-area: rev; text-align: right; font-weight: 600; font-size: 14.5px; }
@@ -442,3 +443,33 @@ button.apt-row:active { background: var(--surface-2); }
 [data-legend] .list-sub { white-space: normal; }
 .mini-bars, .sheet-body > * { flex: none; }
 .sheet-kpis strong { white-space: normal; font-size: 13.5px; }
+
+/* 1.3.1 — more charts */
+.bars-blue .bar > span { background: var(--blue); opacity: 0.85; }
+.bars-blue .bar.is-future > span { background: var(--blue-soft); outline-color: var(--blue); opacity: 1; }
+.bars-blue .bar.is-today > span { background: var(--teal); opacity: 1; }
+.hbars { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.hbars li { display: grid; grid-template-columns: minmax(84px, 38%) 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
+.hbar-label { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar-track { height: 10px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.hbar-track > span { display: block; height: 100%; border-radius: 99px; background: var(--teal); }
+.hbar-value { font-size: 14px; min-width: 52px; text-align: right; }
+.wk-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; }
+.wk { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wk-pct { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.wk-col { width: 100%; max-width: 34px; height: 110px; display: flex; align-items: flex-end; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.wk-col > span { width: 100%; background: var(--teal); opacity: 0.55; border-radius: 6px 6px 0 0; }
+.wk.is-best .wk-col > span { opacity: 1; }
+.wk.is-best .wk-pct { color: var(--teal); }
+.wk-label { font-size: 12.5px; font-weight: 600; }
+.wk-adr { font-size: 11.5px; color: var(--text-3); }
+.wk-foot { font-size: 12px; }
+.rev-track > span { background: var(--blue); }
+.apt-empty { padding: 10px 16px; }
+.trend-grid { display: grid; gap: 16px; }
+.trend-line-teal { stroke: var(--teal); }
+.lg-teal { background: var(--teal) !important; }
+@media (min-width: 900px) {
+  .trend-grid { grid-template-columns: 1fr 1fr; }
+  .apt-row, .apt-head { grid-template-columns: 56px minmax(180px, 2fr) 80px 60px 90px 90px minmax(120px, 1fr); }
+}

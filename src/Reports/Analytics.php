@@ -12,7 +12,9 @@ use One\Integrations\Previo;
  * sections can never compute the same metric differently.
  *
  * Definitions (Previo Overview / Hotelgroup overview):
- *  - room nights total  = apartments in the roster × nights in the period (no closed rooms in ONE)
+ *  - room nights total  = apartments in the roster × nights in the period, each apartment counted only
+ *                         from its first booked night (a new contract — e.g. 33 from August — does not
+ *                         drag earlier months down)
  *  - occupied           = nights with a stay; options count (here they are cash-at-checkout bookings);
  *                         cancelled / no-show / waiting list never reach us (searchReservations omits them)
  *  - occupancy %        = occupied / total
@@ -36,6 +38,8 @@ final class Analytics
     private array $stays = [];
     /** @var array<string,true> */
     private array $inRoster;
+    /** @var array<string, string> apartment → first night it had a guest (contract start in practice) */
+    private array $start = [];
     private int $unpriced = 0;
     private bool $hasCreated = false;
 
@@ -57,6 +61,10 @@ final class Analytics
             $this->hasCreated = $this->hasCreated || ($s['created'] ?? '') !== '';
 
             $nights = (int) $s['nights'];
+            $apt = $s['apartment'];
+            if (!isset($this->start[$apt]) || $s['checkIn'] < $this->start[$apt]) {
+                $this->start[$apt] = $s['checkIn'];
+            }
             if ($nights === 0) {
                 $this->addRevenue($s['apartment'], $s['checkIn'], $net);
                 continue;
@@ -94,10 +102,11 @@ final class Analytics
      */
     public function kpis(string $from, string $to, ?string $apartment = null): array
     {
-        $nights = $occupied = $guestNights = 0;
+        $nights = $occupied = $guestNights = $total = 0;
         $revenue = 0.0;
         foreach (self::dates($from, $to) as $date) {
             $nights++;
+            $total += $apartment === null ? $this->availableOn($date) : (($this->start[$apartment] ?? '9999') <= $date ? 1 : 0);
             if ($apartment === null) {
                 $occupied += count($this->occ[$date] ?? []);
                 $revenue += $this->rev[$date] ?? 0.0;
@@ -107,7 +116,6 @@ final class Analytics
                 $revenue += $this->revApt[$apartment][$date] ?? 0.0;
             }
         }
-        $total = $nights * ($apartment === null ? count($this->roster) : 1);
         return [
             'nights'      => $nights,
             'total'       => $total,
@@ -128,9 +136,9 @@ final class Analytics
      */
     public function series(string $from, string $to): array
     {
-        $total = count($this->roster);
         $out = [];
         foreach (self::dates($from, $to) as $date) {
+            $total = $this->availableOn($date);
             $occ = count($this->occ[$date] ?? []);
             $rev = $this->rev[$date] ?? 0.0;
             $out[] = [
@@ -187,8 +195,13 @@ final class Analytics
                 $byChannel[$s['platform']] = ($byChannel[$s['platform']] ?? 0) + max(1, (int) $s['nights']);
             }
             arsort($byChannel);
-            $out[] = ['apartment' => $apt, 'kpis' => $this->kpis($from, $to, $apt), 'channel' => array_key_first($byChannel)];
+            $k = $this->kpis($from, $to, $apt);
+            if ($k['occupied'] === 0 && $k['revenue'] <= 0) {
+                continue;   // no occupancy in the period (not yet under contract, or empty) — left out
+            }
+            $out[] = ['apartment' => $apt, 'kpis' => $k, 'channel' => array_key_first($byChannel)];
         }
+        usort($out, static fn(array $a, array $b): int => $b['kpis']['revenue'] <=> $a['kpis']['revenue']);
         return $out;
     }
 
@@ -300,6 +313,65 @@ final class Analytics
         return $out;
     }
 
+    /** Apartments that have a detail sheet (any booked night in the loaded history). @return list<string> */
+    public function activeApartments(): array
+    {
+        return array_values(array_filter($this->roster, fn(string $a): bool => isset($this->start[$a])));
+    }
+
+    /**
+     * Occupancy by weekday (Monday first) over [from, to].
+     * @return list<array{label:string, occupied:int, total:int, pct:float, adr:?float}>
+     */
+    public function weekdays(string $from, string $to): array
+    {
+        $labels = ['Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm', 'Dum'];
+        $acc = array_fill(0, 7, ['occupied' => 0, 'total' => 0, 'revenue' => 0.0]);
+        foreach (self::dates($from, $to) as $date) {
+            $i = (int) date('N', strtotime($date)) - 1;
+            $acc[$i]['occupied'] += count($this->occ[$date] ?? []);
+            $acc[$i]['total'] += $this->availableOn($date);
+            $acc[$i]['revenue'] += $this->rev[$date] ?? 0.0;
+        }
+        $out = [];
+        foreach ($acc as $i => $a) {
+            $out[] = [
+                'label'    => $labels[$i],
+                'occupied' => $a['occupied'],
+                'total'    => $a['total'],
+                'pct'      => $a['total'] ? $a['occupied'] * 100 / $a['total'] : 0.0,
+                'adr'      => $a['occupied'] ? $a['revenue'] / $a['occupied'] : null,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Length of stay for reservations with check-in in [from, to]: buckets + average.
+     * @return array{buckets: array<string,int>, reservations:int, average:?float}
+     */
+    public function lengthOfStay(string $from, string $to): array
+    {
+        $buckets = ['câteva ore' => 0, '1' => 0, '2' => 0, '3' => 0, '4' => 0, '5–6' => 0, '7+' => 0];
+        $count = $nights = 0;
+        foreach ($this->stays as $s) {
+            if ($s['checkIn'] < $from || $s['checkIn'] > $to) {
+                continue;
+            }
+            $n = (int) $s['nights'];
+            $key = match (true) {
+                $n === 0 => 'câteva ore',
+                $n <= 4  => (string) $n,
+                $n <= 6  => '5–6',
+                default  => '7+',
+            };
+            $buckets[$key]++;
+            $count++;
+            $nights += $n;
+        }
+        return ['buckets' => $buckets, 'reservations' => $count, 'average' => $count ? $nights / $count : null];
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     /** Relative change in %, null when there is no baseline. */
@@ -319,6 +391,16 @@ final class Analytics
             $out[] = $d->format('Y-m-d');
         }
         return $out;
+    }
+
+    /** Roster apartments already under contract on $date (first booked night ≤ $date). */
+    private function availableOn(string $date): int
+    {
+        $n = 0;
+        foreach ($this->start as $first) {
+            $n += $first <= $date ? 1 : 0;
+        }
+        return $n;
     }
 
     private function net(float $price): float
