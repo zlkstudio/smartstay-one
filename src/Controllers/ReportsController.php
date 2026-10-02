@@ -42,6 +42,9 @@ final class ReportsController
     public static function overview(): never
     {
         $user = Guard::requireAccess('reports', 'view');
+        if (Access::isMaid($user)) {   // Menajera vede doar curățeniile ei, nu ocuparea/veniturile.
+            redirect('/reports/payments');
+        }
         $period = Period::fromQuery($_GET);
         $report = null;
         $error = null;
@@ -156,18 +159,31 @@ final class ReportsController
     public static function payments(): never
     {
         $user = Guard::requireAccess('reports', 'view');
+        $ownMaid = Access::isMaid($user) ? self::ownMaidName($user) : null;
         [$from, $to, $preset] = self::period();
         $data = null;
         $error = null;
         try {
-            $data = MaidPayments::build($from, $to);
+            $data = MaidPayments::build($from, $to, $ownMaid);
         } catch (Throwable $e) {
             error_log('[ONE] payments report: ' . $e->getMessage());
             $error = 'Baza Housekeeping nu răspunde. Încearcă din nou.';
         }
+        if ($ownMaid !== null && $data !== null) {
+            // Intern, niciodată către menajeră: „Checklist x2" și „tarif implicit".
+            $data['unknown'] = [];
+            foreach ($data['maids'] as &$m) {
+                foreach ($m['lines'] as &$l) {
+                    $l['double'] = false;
+                    $l['known'] = true;
+                }
+                unset($l);
+            }
+            unset($m);
+        }
         $phones = [];
         try {
-            $phones = UserRepository::maidPhones();
+            $phones = $ownMaid === null ? UserRepository::maidPhones() : [];
         } catch (Throwable $e) {
             error_log('[ONE] maid phones: ' . $e->getMessage());
         }
@@ -179,7 +195,8 @@ final class ReportsController
 
         view('pages/reports/payments', [
             'user'      => $user,
-            'pageTitle' => 'Plata menajerelor',
+            'pageTitle' => $ownMaid !== null ? 'Curățeniile mele' : 'Plata menajerelor',
+            'ownMaid'   => $ownMaid,
             'active'    => 'reports',
             'tab'       => 'payments',
             'from'      => $from,
@@ -201,6 +218,9 @@ final class ReportsController
     public static function today(): never
     {
         $user = Guard::requireAccess('reports', 'view');
+        if (Access::isMaid($user)) {
+            Guard::forbidden($user);
+        }
         try {
             $report = OperationsReport::cached(900);
         } catch (RuntimeException $e) {
@@ -323,6 +343,18 @@ final class ReportsController
             default      => [$monday->modify('-7 days'), $monday->modify('-1 day')],
         };
         return [$a->format('Y-m-d'), $b->format('Y-m-d'), $preset];
+    }
+
+    /** Numele menajerei din cont, așa cum e scris în cleaning_records ("Ioana"). */
+    private static function ownMaidName(array $user): string
+    {
+        $maids = config('maids', []);
+        $ref = (string) ($user['maid_ref'] ?? '');
+        if ($ref === '' || !isset($maids[$ref])) {
+            error_log("[ONE] maid user {$user['id']} has unknown maid_ref '$ref'");
+            Guard::forbidden($user);
+        }
+        return (string) $maids[$ref];
     }
 
     private static function date(string $value): ?string

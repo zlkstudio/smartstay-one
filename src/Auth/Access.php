@@ -29,6 +29,17 @@ final class Access
     ];
 
     /**
+     * Menajeră: Curățenie + Inventar (edit), Rezervări (doar citire), Rapoarte (doar citire, și acolo
+     * doar propriile curățenii — ReportsController filtrează după maid_ref).
+     */
+    private const MAID = [
+        'housekeeping' => 'edit',
+        'inventory'    => 'edit',
+        'reservations' => 'view',
+        'reports'      => 'view',
+    ];
+
+    /**
      * @param array{role:string, permissions?:array<string,string>} $user
      * @return 'edit'|'view'|null
      */
@@ -37,7 +48,7 @@ final class Access
         return match ($user['role']) {
             'admin'   => 'edit',
             'manager' => in_array($module, self::MODULES, true) ? 'edit' : null,
-            'maid'    => $module === 'housekeeping' ? 'edit' : null,
+            'maid'    => self::MAID[$module] ?? null,
             'user'    => in_array($module, self::MODULES, true) ? ($user['permissions'][$module] ?? null) : null,
             default   => null,
         };
@@ -59,6 +70,11 @@ final class Access
             [...self::MODULES, ...self::ADMIN_MODULES],
             static fn(string $m): bool => self::can($user, $m)
         ));
+    }
+
+    public static function isMaid(array $user): bool
+    {
+        return ($user['role'] ?? '') === 'maid';
     }
 
     /** Where a user lands after login. */

@@ -18,17 +18,18 @@ final class MaidPayments
      * @return array{from:string, to:string, total:int, count:int, unknown:list<string>,
      *   maids:list<array{name:string, key:?string, total:int, checkouts:int, intermediates:int, lines:list<array>}>}
      */
-    public static function build(string $from, string $to): array
+    public static function build(string $from, string $to, ?string $onlyMaid = null): array
     {
         $pdo = Database::get('cleaning');
 
+        // $onlyMaid ("Ioana"): contul de Menajeră vede doar rândurile ei — filtrat în SQL, nu în view.
         $stmt = $pdo->prepare(
             'SELECT id, maid_name, apartment_number, cleaning_date, cleaning_type
              FROM cleaning_records
-             WHERE cleaning_date BETWEEN ? AND ?
+             WHERE cleaning_date BETWEEN ? AND ?' . ($onlyMaid !== null ? ' AND maid_name = ?' : '') . '
              ORDER BY cleaning_date, apartment_number'
         );
-        $stmt->execute([$from, $to]);
+        $stmt->execute($onlyMaid !== null ? [$from, $to, $onlyMaid] : [$from, $to]);
         $records = $stmt->fetchAll();
 
         $stmt = $pdo->prepare(

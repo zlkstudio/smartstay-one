@@ -2,7 +2,8 @@
 /**
  * Rapoarte · Plata menajerelor — per maid, per cleaning, rates recomputed from Housekeeping\Rates.
  * @var string $from @var string $to @var ?string $preset @var ?array $data @var ?string $error
- * @var array $maids @var bool $canEdit @var string $tab
+ * @var array $maids @var bool $canEdit @var string $tab @var ?string $ownMaid
+ * $ownMaid ≠ null → cont de Menajeră: doar curățeniile ei, fără tab-uri, fără WhatsApp, fără adăugare.
  */
 use One\Controllers\ReportsController;
 use One\Housekeeping\Rates;
@@ -15,15 +16,17 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
 <div class="stack" data-reports data-can-edit="<?= $canEdit ? '1' : '0' ?>">
   <div class="hero">
     <div class="eyebrow"><?= h($preset ? ReportsController::PRESETS[$preset] : 'Perioadă aleasă') ?></div>
-    <h1>Plata menajerelor</h1>
+    <h1><?= $ownMaid !== null ? 'Curățeniile mele' : 'Plata menajerelor' ?></h1>
     <p class="tabular"><?= h($fmt($from)) ?> – <?= h(date('d.m.Y', strtotime($to))) ?></p>
   </div>
 
+  <?php if ($ownMaid === null): ?>
   <nav class="tabs tabs-teal" aria-label="Secțiuni Rapoarte">
     <?php foreach (ReportsController::TABS as $key => $t): ?>
       <a href="<?= h($t['path']) ?>" class="tab<?= $key === $tab ? ' is-active' : '' ?>" <?= $key === $tab ? 'aria-current="page"' : '' ?>><?= h($t['label']) ?></a>
     <?php endforeach; ?>
   </nav>
+  <?php endif; ?>
 
   <div class="chips chips-teal" role="group" aria-label="Perioadă">
     <?php foreach (ReportsController::PRESETS as $key => $label): ?>
@@ -52,7 +55,7 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
     <?php endif; ?>
 
     <div class="stat-grid stat-grid-2">
-      <div class="stat"><span class="stat-value tabular"><?= h($money($data['total'])) ?></span><span class="stat-label">Total de plată</span></div>
+      <div class="stat"><span class="stat-value tabular"><?= h($money($data['total'])) ?></span><span class="stat-label"><?= $ownMaid !== null ? 'Totalul tău' : 'Total de plată' ?></span></div>
       <div class="stat"><span class="stat-value tabular"><?= (int) $data['count'] ?></span><span class="stat-label">Curățenii</span></div>
     </div>
 
@@ -65,7 +68,7 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
     <?php endif; ?>
 
     <?php foreach ($data['maids'] as $m): ?>
-      <details class="card pay-card">
+      <details class="card pay-card"<?= $ownMaid !== null ? ' open' : '' ?>>
         <summary class="pay-head">
           <span class="avatar role-maid"><?= h(initials($m['name'])) ?></span>
           <span class="grow">
@@ -94,7 +97,7 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
             </li>
           <?php endforeach; ?>
         </ul>
-        <?php
+        <?php if ($ownMaid === null):
           // WhatsApp message: every cleaning + total. *bold* / _italic_ are WhatsApp markup.
           // The "Checklist x2" and "tarif implicit" flags stay internal — never sent to the maid.
           $wa = ['*Plata curățenii · ' . $m['name'] . '*', '_' . $fmt($from) . ' – ' . $fmt($to) . '.' . date('Y', strtotime($to)) . '_', ''];
@@ -117,6 +120,7 @@ $money = static fn(int $v): string => number_format($v, 0, ',', '.') . ' RON';
         </div>
         <?php if ($m['key'] !== null && $waPhone === ''): ?>
           <p class="hint">Fără număr: WhatsApp te lasă să alegi contactul. Adaugă telefonul în contul ei de Menajeră.</p>
+        <?php endif; ?>
         <?php endif; ?>
       </details>
     <?php endforeach; ?>

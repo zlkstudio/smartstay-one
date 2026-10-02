@@ -11,7 +11,7 @@ $csrf = Auth::csrfToken();
 $roleHelp = [
     'admin'   => 'Tot, inclusiv utilizatori și setări.',
     'manager' => 'Toate modulele și rapoartele. Fără utilizatori și setări.',
-    'maid'    => 'Doar lista ei de curățenie. Fără prețuri, fără rapoarte.',
+    'maid'    => 'Curățenie și Inventar; Rezervări doar citire; în Rapoarte doar curățeniile ei.',
     'user'    => 'Doar modulele bifate mai jos.',
 ];
 $phoneDisplay = $data['phone'] ? '+' . $data['phone'] : '';

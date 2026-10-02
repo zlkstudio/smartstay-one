@@ -10,13 +10,15 @@ $active = $active ?? null;
 $isMaid = $user && $user['role'] === 'maid';
 
 $navItems = [];
-if ($user && !$isMaid && !(int) $user['must_change_password']) {
-    $navItems[] = ['key' => 'home', 'href' => '/', 'label' => 'Acasă', 'icon' => 'home'];
+if ($user && !(int) $user['must_change_password']) {
+    if (!$isMaid) {   // Menajera nu are Acasă: aterizează pe Curățenie.
+        $navItems[] = ['key' => 'home', 'href' => '/', 'label' => 'Acasă', 'icon' => 'home'];
+    }
     foreach (Access::MODULES as $module) {
         if (Access::can($user, $module)) {
             $navItems[] = [
                 'key'   => $module,
-                'href'  => '/' . $module,
+                'href'  => $isMaid && $module === 'reports' ? '/reports/payments' : '/' . $module,
                 'label' => $module === 'housekeeping' ? 'Curățenie' : Access::LABELS[$module],
                 'icon'  => $module,
             ];

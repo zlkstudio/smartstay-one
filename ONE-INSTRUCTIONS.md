@@ -1,7 +1,7 @@
 # SmartStay ONE — Instrucțiuni
 
 > **Ultima actualizare**: 2 octombrie 2026 (21:45)
-> **Versiune**: 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
+> **Versiune**: 1.3.3 (Menajeră: + Rezervări citire, Inventar, Rapoarte doar curățeniile ei) · 1.3.2 (Rapoarte · Prezentare extinsă: perioade, KPI, per apartament, trend lunar; opțiunile numărate)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
 > **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
@@ -100,13 +100,13 @@ smartstay-one/
 
 ## 4. Autentificare și roluri
 
-**Matricea** (`src/Auth/Access.php`) — neschimbată:
+**Matricea** (`src/Auth/Access.php`):
 
 | Rol | Rezervări | Housekeeping | Inventar | Rapoarte | Utilizatori/Setări |
 |---|---|---|---|---|---|
 | Admin | edit | edit | edit | edit | edit |
 | Manager | edit | edit | edit | edit | — |
-| Menajeră | — | check-out-urile de azi, se alocă doar pe ea | — | — | — |
+| Menajeră | view | check-out-urile de azi, se alocă doar pe ea | edit | doar curățeniile ei | — |
 | Utilizator | după `permissions` | idem | idem | idem | — |
 
 Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
@@ -114,7 +114,12 @@ Ce înseamnă în Etapa 2 (verificat pe server, nu doar în UI):
 - **edit**: tot ce făcea app-ul vechi.
 - **Menajera** (din 1.2.1): vede check-out-urile de azi **fără numele oaspeților**, își preia apartamentele libere
   („Preiau") și renunță doar la ale ei, încă nefăcute. Serverul refuză alocarea pe altă menajeră, un apartament deja luat
-  sau unul fără check-out azi. Checklist doar pentru apartamentele ei. `/housekeeping/intermediate`, `/reservations` → 403.
+  sau unul fără check-out azi. Checklist doar pentru apartamentele ei. `/housekeeping/intermediate` → 403.
+- **Menajera** (din 1.3.3): are bara de navigare (Rezervări · Curățenie · Inventar · Rapoarte, fără Acasă — aterizează tot pe
+  Curățenie). Rezervări = **view** (vede lista, inclusiv numele oaspeților; fără toggle-uri / Nuki / „Trimis").
+  Inventar = **edit** (+/−, Necesar, verso). Rapoarte: `/reports` → redirect la `/reports/payments` = „Curățeniile mele",
+  filtrat în SQL după `maid_name` din `maid_ref`; fără „Checklist x2", fără „tarif implicit", fără tab-uri, WhatsApp sau
+  adăugare/ștergere. `/api/reports/today` → 403.
   Admin / Manager / Utilizator cu edit: alocă oricărei menajere, ca înainte.
 - Fiecare acțiune de modul ajunge în `audit_log` (`reservation.status`, `reservation.nuki`, `housekeeping.*`).
   Pagina Utilizatori arată doar activitatea pe conturi.
