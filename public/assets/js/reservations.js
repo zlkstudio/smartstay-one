@@ -47,12 +47,22 @@
       window.prompt('Copiază:', text);
     }
   }
+  // Phones (and the installed PWA) open the WhatsApp app directly through whatsapp://.
+  // An https link opened from the PWA lands in iOS's in-app browser sheet, which stays
+  // behind as a white screen after WhatsApp takes over. Desktop keeps WhatsApp Web.
+  const NATIVE_WA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   function waUrl(phone, message) {
-    return 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone) + '&text=' + encodeURIComponent(message);
+    const query = 'phone=' + encodeURIComponent(phone) + '&text=' + encodeURIComponent(message);
+    return NATIVE_WA ? 'whatsapp://send?' + query : 'https://api.whatsapp.com/send?' + query;
   }
   function openWa(phone, message) {
     if (!phone) { toast('Telefon lipsă pentru WhatsApp'); return false; }
-    window.open(waUrl(phone, message), '_blank', 'noopener');
+    if (NATIVE_WA) {
+      window.location.href = waUrl(phone, message);
+    } else {
+      window.open(waUrl(phone, message), '_blank', 'noopener');
+    }
     return true;
   }
   function greeting(isRo) {
@@ -157,12 +167,11 @@
           ${toggle('city_tax_paid', !!s.city_tax_paid, 'Taxă oraș', 'Plătită', 'Neplătită', 'receipt')}
           ${toggle('checkin_completed', !!s.checkin_completed, 'Check-in form', 'Completat', 'În așteptare', 'check')}
         </div>
-        <div class="res-actions">
+        <div class="res-actions res-actions-3">
           <button type="button" class="act act-whatsapp" data-action="welcome" ${r.waPhone ? '' : 'disabled'}>${icon('whatsapp')}WhatsApp</button>
           <button type="button" class="act act-nuki" data-action="nuki" ${CAN_EDIT && r.hasNuki && r.nukiCode ? '' : 'disabled'}
             ${r.hasNuki ? '' : 'title="Apartamentul nu are yală Nuki configurată"'}>${icon('key')}${nukiLabel}</button>
           <button type="button" class="act act-guest" data-action="guest-link">${icon('link')}Guest App</button>
-          <button type="button" class="act act-checkin" data-action="checkin-form" ${r.waPhone ? '' : 'disabled'}>${icon('file')}Check-in</button>
         </div>
       </article>`;
     }
@@ -270,13 +279,6 @@
           if (openWa(r.waPhone, msg)) toast('Mesaj Welcome deschis');
           break;
         }
-        case 'checkin-form': {
-          const msg = r.isRo
-            ? 'Vă rugăm să completați formularul de check-in:\n\nhttps://smartstay.ro/check-in/\n\nDupă completarea formularului, codul de intrare devine *Activ*.\n\nAcesta trebuie completat cât mai curând posibil.'
-            : 'Please complete the check-in form:\n\nhttps://smartstay.ro/check-in-en/\n\nAfter completing the form, the entry code becomes *Active*\n\nThe form should be completed as soon as possible';
-          if (openWa(r.waPhone, msg)) toast('Mesaj Check-in deschis');
-          break;
-        }
         case 'guest-link':
           copy(r.guestLink, 'Link Guest App copiat');
           break;
@@ -369,7 +371,7 @@
         </div>
         <div class="res-actions res-actions-2">
           ${r.waPhone
-            ? `<a class="act ${sent ? 'act-sent' : 'act-whatsapp'}" href="${esc(waUrl(r.waPhone, msg))}" target="_blank" rel="noopener"
+            ? `<a class="act ${sent ? 'act-sent' : 'act-whatsapp'}" href="${esc(waUrl(r.waPhone, msg))}"${NATIVE_WA ? '' : ' target="_blank" rel="noopener"'}
                  data-action="send" data-platform="${esc(r.platform)}">${sent ? icon('check') + 'Trimis · ' + esc(sent.at) + (sent.by ? ' · ' + esc(sent.by.split(' ')[0]) : '') : icon('whatsapp') + 'Trimite'}</a>`
             : '<button type="button" class="act" disabled>Fără telefon</button>'}
           <button type="button" class="act act-guest" data-action="preview">Previzualizare</button>

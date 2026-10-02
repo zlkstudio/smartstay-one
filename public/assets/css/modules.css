@@ -84,7 +84,8 @@
 .act-nuki { background: var(--blue-grad); color: #fff; font-variant-numeric: tabular-nums; }
 .act-nuki.is-sent, .act-sent { background: var(--success-soft); color: var(--success); }
 .act-guest { background: var(--blue-soft); color: var(--blue); }
-.act-checkin { background: var(--violet-soft); color: var(--violet); }
+/* Reservation card: WhatsApp full width, Nuki + Guest App side by side; one row of 3 on wider screens. */
+.res-actions-3 .act-whatsapp { grid-column: 1 / -1; }
 
 /* WhatsApp outreach */
 .wa-card { display: flex; flex-direction: column; gap: 12px; }
@@ -234,6 +235,7 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 .add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 @media (min-width: 640px) {
-  .res-actions { grid-template-columns: repeat(4, 1fr); }
+  .res-actions-3 { grid-template-columns: repeat(3, 1fr); }
+  .res-actions-3 .act-whatsapp { grid-column: auto; }
   .res-actions-2 { grid-template-columns: 1fr 1fr; }
 }
