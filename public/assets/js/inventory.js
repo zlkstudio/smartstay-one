@@ -140,7 +140,7 @@
     if (!LEVEL[level] || card.dataset.stock === level) return;
     card.dataset.stock = level;
     const badge = card.querySelector('[data-level-badge]');
-    badge.className = 'badge inv-level ' + LEVEL[level][0];
+    badge.className = 'badge ' + LEVEL[level][0];
     badge.textContent = LEVEL[level][1];
     card.classList.remove('is-flash');
     void card.offsetWidth; // restart the animation
@@ -198,33 +198,120 @@
     chains.set(key, chain);
   });
 
-  // ── Necesar: autosave 800 ms after the last keystroke, and on blur ──────
-  const noteTimers = new Map();
-  function saveNote(area) {
+  // ── Necesar (front) + Tehnic (back): autosave 800 ms after typing, and on blur ──
+  const SAVE = {
+    note: { url: '/api/inventory/note', field: 'note', error: 'Nota nu s-a salvat: ' },
+    tech: { url: '/api/inventory/tech', field: 'tech', error: 'Nota tehnică nu s-a salvat: ' },
+  };
+  const saveTimers = new Map();
+  function autosave(area) {
     const card = area.closest('.inv-card');
-    const state = card.querySelector('[data-note-state]');
-    clearTimeout(noteTimers.get(area));
-    noteTimers.delete(area);
+    const kind = area.dataset.autosave;
+    const state = card.querySelector(`[data-save-state="${kind}"]`);
+    clearTimeout(saveTimers.get(area));
+    saveTimers.delete(area);
     if (area.value === area.dataset.saved) return;
     const value = area.value;
     state.textContent = 'Se salvează…';
-    window.ONE.api('/api/inventory/note', { method: 'POST', body: { apartment: card.dataset.apt, note: value } })
+    window.ONE.api(SAVE[kind].url, { method: 'POST', body: { apartment: card.dataset.apt, [SAVE[kind].field]: value } })
       .then(() => {
         area.dataset.saved = value;
         state.textContent = 'Salvat';
         stamp(card);
+        if (kind === 'tech') card.querySelector('[data-tech-badge]').hidden = value.trim() === '';
         setTimeout(() => { if (state.textContent === 'Salvat') state.textContent = ''; }, 2000);
       })
-      .catch((e) => { state.textContent = ''; toast('Nota nu s-a salvat: ' + e.message); });
+      .catch((e) => { state.textContent = ''; toast(SAVE[kind].error + e.message); });
   }
-  root.querySelectorAll('[data-note]').forEach((area) => {
+  root.querySelectorAll('[data-autosave]').forEach((area) => {
     area.dataset.saved = area.value;
     if (!CAN_EDIT) return;
     area.addEventListener('input', () => {
-      clearTimeout(noteTimers.get(area));
-      noteTimers.set(area, setTimeout(() => saveNote(area), 800));
+      clearTimeout(saveTimers.get(area));
+      saveTimers.set(area, setTimeout(() => autosave(area), 800));
     });
-    area.addEventListener('blur', () => { if (noteTimers.has(area)) saveNote(area); });
+    area.addEventListener('blur', () => { if (saveTimers.has(area)) autosave(area); });
+  });
+
+  // ── Flip: 2D scaleX (3D transforms freeze scrolling on iOS WebKit) ─────────
+  function flip(card) {
+    if (card.classList.contains('is-flipping')) return;
+    const front = card.querySelector('[data-face="front"]');
+    const back = card.querySelector('[data-face="back"]');
+    // Unsaved typing on the face we leave is saved first.
+    card.querySelectorAll('[data-autosave]').forEach((a) => { if (saveTimers.has(a)) autosave(a); });
+    card.classList.add('is-flipping', 'flip-out');
+    setTimeout(() => {
+      const toBack = back.hidden;
+      front.hidden = toBack;
+      back.hidden = !toBack;
+      card.classList.toggle('is-back', toBack);
+      card.classList.replace('flip-out', 'flip-in');
+      setTimeout(() => card.classList.remove('is-flipping', 'flip-in'), 170);
+    }, 150);
+  }
+
+  // ── Set / box (back) with undo ──────────────────────────────────────────
+  const undoTimers = new Map();
+  function showValues(card, values, level) {
+    Object.entries(values).forEach(([item, v]) => {
+      const out = card.querySelector(`.counter[data-item="${item}"] [data-value]`);
+      if (out) out.textContent = v;
+    });
+    card.dataset.linen = values.lenjerie;
+    setLevel(card, level);
+    updateCounts();
+  }
+  function batch(card, op, deltas, buttons) {
+    buttons.forEach((b) => { b.disabled = true; });
+    const body = { apartment: card.dataset.apt, op };
+    if (deltas) body.deltas = deltas;
+    return window.ONE.api('/api/inventory/batch', { method: 'POST', body })
+      .then((res) => {
+        showValues(card, res.values, res.level);
+        stamp(card);
+        toast(res.message);
+        const undo = card.querySelector('[data-undo]');
+        clearTimeout(undoTimers.get(card));
+        if (op === 'undo') { undo.hidden = true; return; }
+        const changed = Object.values(res.applied).some((n) => n !== 0);
+        if (!changed) { undo.hidden = true; return; }
+        undo.dataset.deltas = JSON.stringify(res.applied);
+        undo.querySelector('[data-undo-text]').textContent = op === 'set' ? 'Set scăzut' : 'Cutie adăugată';
+        undo.hidden = false;
+        undoTimers.set(card, setTimeout(() => { undo.hidden = true; }, 8000));
+      })
+      .catch((e) => toast('Nu s-a salvat: ' + e.message))
+      .finally(() => buttons.forEach((b) => { b.disabled = false; }));
+  }
+
+  $list.addEventListener('click', (event) => {
+    const flipBtn = event.target.closest('[data-flip]');
+    if (flipBtn) { flip(flipBtn.closest('.inv-card')); return; }
+    if (!CAN_EDIT) return;
+    const card = event.target.closest('.inv-card');
+    if (!card) return;
+    const batchBtn = event.target.closest('[data-batch]');
+    if (batchBtn) {
+      batch(card, batchBtn.dataset.batch, null, Array.from(card.querySelectorAll('[data-batch], [data-undo-btn]')));
+      return;
+    }
+    if (event.target.closest('[data-undo-btn]')) {
+      const undo = card.querySelector('[data-undo]');
+      batch(card, 'undo', JSON.parse(undo.dataset.deltas || '{}'), Array.from(card.querySelectorAll('[data-batch], [data-undo-btn]')));
+    }
+  });
+
+  // TV App: saved on tap, rolled back on error.
+  $list.addEventListener('change', (event) => {
+    const box = event.target.closest('[data-tv-app]');
+    if (!box || !CAN_EDIT) return;
+    const card = box.closest('.inv-card');
+    box.disabled = true;
+    window.ONE.api('/api/inventory/tech', { method: 'POST', body: { apartment: card.dataset.apt, tvApp: box.checked } })
+      .then(() => { stamp(card); toast(box.checked ? 'TV App bifat' : 'TV App debifat'); })
+      .catch((e) => { box.checked = !box.checked; toast('Nu s-a salvat: ' + e.message); })
+      .finally(() => { box.disabled = false; });
   });
 
   // ── Refresh ─────────────────────────────────────────────────────────────

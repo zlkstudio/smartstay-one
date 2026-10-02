@@ -103,6 +103,8 @@ $router->get('/inventory', static fn() => InventoryController::index());
 $router->get('/api/inventory/occupancy', static fn() => InventoryController::occupancy());
 $router->post('/api/inventory/adjust', static fn() => InventoryController::adjust());
 $router->post('/api/inventory/note', static fn() => InventoryController::note());
+$router->post('/api/inventory/batch', static fn() => InventoryController::batch());
+$router->post('/api/inventory/tech', static fn() => InventoryController::tech());
 
 // ── Rapoarte (Etapa 3) ─────────────────────────────────────────────────────
 $router->get('/reports', static fn() => ReportsController::overview());

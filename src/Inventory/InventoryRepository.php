@@ -27,11 +27,20 @@ final class InventoryRepository
 
     public const NOTE_MAX = 2000;
 
+    /**
+     * Back of the card (legacy update_batch.php): one guest set out, one supplier box in.
+     * Same quantities for every apartment and for the depot.
+     */
+    public const BATCHES = [
+        'set' => ['lenjerie' => -1, 'fete_perne_mari' => -2, 'prosoape_mari' => -2, 'prosoape_mici' => -1, 'prosoape_picioare' => -1],
+        'box' => ['lenjerie' => 4, 'fete_perne_mari' => 8, 'prosoape_mari' => 8, 'prosoape_mici' => 4, 'prosoape_picioare' => 4],
+    ];
+
     /** @return list<array{apartment:string, items:array<string,int>, note:string}> */
     public static function all(): array
     {
         $rows = self::db()->query(
-            'SELECT apartament, ' . implode(', ', array_keys(self::ITEMS)) . ', necesar FROM inventar_apartamente'
+            'SELECT apartament, ' . implode(', ', array_keys(self::ITEMS)) . ', necesar, tv_app, tehnic FROM inventar_apartamente'
         )->fetchAll();
 
         $out = [];
@@ -44,6 +53,8 @@ final class InventoryRepository
                 'apartment' => trim((string) $row['apartament']),
                 'items'     => $items,
                 'note'      => (string) ($row['necesar'] ?? ''),
+                'tvApp'     => (bool) ($row['tv_app'] ?? false),
+                'tech'      => (string) ($row['tehnic'] ?? ''),
             ];
         }
         return $out;
@@ -83,6 +94,78 @@ final class InventoryRepository
         $stmt->execute([$apartment]);
         $value = $stmt->fetchColumn();
         return $value === false ? null : (int) $value;
+    }
+
+    /**
+     * Applies several deltas in one transaction (row locked), never below zero.
+     * Returns the new values and the deltas actually applied — after a clamp at 0 they are
+     * smaller than requested, so an undo puts back exactly what was taken.
+     * @param array<string,int> $deltas column => delta
+     * @return array{values:array<string,int>, applied:array<string,int>}|null null when the apartment does not exist
+     */
+    public static function applyDeltas(string $apartment, array $deltas): ?array
+    {
+        foreach ($deltas as $item => $delta) {
+            if (!isset(self::ITEMS[$item]) || !is_int($delta)) {
+                throw new InvalidArgumentException('Articol sau cantitate invalidă.');
+            }
+        }
+        $pdo = self::db();
+        $cols = implode(', ', array_map(static fn(string $c): string => "`$c`", array_keys(self::ITEMS)));
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("SELECT $cols FROM inventar_apartamente WHERE apartament = ? FOR UPDATE");
+            $stmt->execute([$apartment]);
+            $row = $stmt->fetch();
+            if ($row === false) {
+                $pdo->rollBack();
+                return null;
+            }
+            $values = [];
+            $applied = [];
+            foreach (array_keys(self::ITEMS) as $item) {
+                $current = (int) ($row[$item] ?? 0);
+                $values[$item] = max(0, $current + ($deltas[$item] ?? 0));
+                $applied[$item] = $values[$item] - $current;
+            }
+            $sets = implode(', ', array_map(static fn(string $c): string => "`$c` = ?", array_keys(self::ITEMS)));
+            $pdo->prepare("UPDATE inventar_apartamente SET $sets WHERE apartament = ?")
+                ->execute([...array_values($values), $apartment]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+        return ['values' => $values, 'applied' => $applied];
+    }
+
+    /**
+     * "Tehnic" on the back of the card — same columns as the legacy update_tehnic.php.
+     * Only the fields passed (non-null) are written.
+     * @return bool false when the apartment does not exist
+     */
+    public static function setTech(string $apartment, ?bool $tvApp, ?string $tech): bool
+    {
+        if (!self::exists($apartment)) {
+            return false;
+        }
+        $sets = [];
+        $params = [];
+        if ($tvApp !== null) {
+            $sets[] = 'tv_app = ?';
+            $params[] = $tvApp ? 1 : 0;
+        }
+        if ($tech !== null) {
+            $sets[] = 'tehnic = ?';
+            $params[] = trim(mb_substr($tech, 0, self::NOTE_MAX));
+        }
+        if ($sets) {
+            $params[] = $apartment;
+            self::db()->prepare('UPDATE inventar_apartamente SET ' . implode(', ', $sets) . ' WHERE apartament = ?')->execute($params);
+        }
+        return true;
     }
 
     /** @return bool false when the apartment does not exist */

@@ -123,6 +123,73 @@ final class InventoryController
         json_response(['ok' => true]);
     }
 
+    /**
+     * POST /api/inventory/batch {apartment, op: "set"|"box"|"undo", deltas?}
+     * "set" takes one guest set out, "box" adds one supplier box, "undo" reverses the
+     * deltas the previous batch actually applied (sent back by the client, bounded).
+     */
+    public static function batch(): never
+    {
+        $user = Guard::requireAccess('inventory', 'edit');
+        Guard::requireCsrf();
+        $in = request_json();
+        $apartment = self::apartment($in['apartment'] ?? null);
+        $op = (string) ($in['op'] ?? '');
+
+        if (isset(InventoryRepository::BATCHES[$op])) {
+            $deltas = InventoryRepository::BATCHES[$op];
+        } elseif ($op === 'undo' && is_array($in['deltas'] ?? null)) {
+            $deltas = [];
+            foreach ($in['deltas'] as $item => $delta) {
+                if (!isset(InventoryRepository::ITEMS[$item]) || !is_int($delta) || abs($delta) > 20) {
+                    json_response(['ok' => false, 'error' => 'Anulare invalidă.'], 422);
+                }
+                $deltas[$item] = -$delta;
+            }
+        } else {
+            json_response(['ok' => false, 'error' => 'Operație invalidă.'], 422);
+        }
+
+        $result = InventoryRepository::applyDeltas($apartment, $deltas);
+        if ($result === null) {
+            json_response(['ok' => false, 'error' => "Apartamentul $apartment nu există în inventar."], 404);
+        }
+        Audit::log((int) $user['id'], 'inventory.batch', 'inventory', $apartment, ['op' => $op, 'applied' => $result['applied']]);
+
+        $labels = ['set' => 'Set scăzut', 'box' => 'Cutie adăugată', 'undo' => 'Operația a fost anulată'];
+        json_response([
+            'ok'      => true,
+            'values'  => $result['values'],
+            'applied' => $result['applied'],
+            'level'   => Stock::level($apartment, $result['values']['lenjerie']),
+            'message' => $labels[$op] . " · $apartment",
+        ]);
+    }
+
+    /** POST /api/inventory/tech {apartment, tvApp?: bool, tech?: string} — "Tehnic" on the back. */
+    public static function tech(): never
+    {
+        $user = Guard::requireAccess('inventory', 'edit');
+        Guard::requireCsrf();
+        $in = request_json();
+        $apartment = self::apartment($in['apartment'] ?? null);
+        $tvApp = array_key_exists('tvApp', $in) ? (bool) $in['tvApp'] : null;
+        $tech = array_key_exists('tech', $in) ? (string) $in['tech'] : null;
+        if ($tvApp === null && $tech === null) {
+            json_response(['ok' => false, 'error' => 'Nimic de salvat.'], 422);
+        }
+        if ($tech !== null && mb_strlen($tech) > InventoryRepository::NOTE_MAX) {
+            json_response(['ok' => false, 'error' => 'Nota e prea lungă.'], 422);
+        }
+        if (!InventoryRepository::setTech($apartment, $tvApp, $tech)) {
+            json_response(['ok' => false, 'error' => "Apartamentul $apartment nu există în inventar."], 404);
+        }
+        Audit::log((int) $user['id'], 'inventory.tech', 'inventory', $apartment, array_filter([
+            'tvApp' => $tvApp, 'length' => $tech === null ? null : mb_strlen(trim($tech)),
+        ], static fn($v): bool => $v !== null));
+        json_response(['ok' => true]);
+    }
+
     /** Apartment numbers or "Boxa": letters, digits, space, dash — max 10 (column width). */
     private static function apartment(mixed $raw): string
     {

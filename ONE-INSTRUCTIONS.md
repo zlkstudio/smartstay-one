@@ -275,7 +275,12 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 - +/− **atomic** (un singur `UPDATE`, nu citește-apoi-scrie) — două telefoane care apasă simultan nu mai pierd apăsări. Afișare optimistă, cereri în coadă per articol.
 - Praguri lenjerii (`src/Inventory/Stock.php`): studio ≤1 roșu · 2 galben · ≥3 verde; 187, 594 ≤3 / 4 / ≥5; Boxa <5 / 5–12 / >12.
 - „Necesar" se salvează singur la 0,8 s după ultima tastă și la ieșirea din câmp.
-- Fiecare modificare intră în `audit_log` (`inventory.adjust`, `inventory.note`); cardul arată „Modificat de X · ora".
+- Fiecare modificare intră în `audit_log` (`inventory.adjust`, `inventory.note`, `inventory.batch`, `inventory.tech`); cardul arată „Modificat de X · ora".
+- **Verso** (butonul ⟳ din colț, flip 2D — fără 3D, care îngheață scroll-ul pe iOS):
+  „Scade un set" (−1 lenjerie, −2 fețe pernă, −2 prosoape mari, −1 mic, −1 picioare) și „Adaugă o cutie" (+4, +8, +8, +4, +4),
+  într-o singură tranzacție, cu **Anulează** 8 s (pune înapoi exact ce s-a scăzut, chiar dacă un articol era la 0).
+  Rubrica **Tehnic**: bifa TV App (salvare imediată) + notă cu autosave. Aceleași coloane ca aplicația veche (`tv_app`, `tehnic`).
+  Pe față apare insigna „Tehnic" când nota tehnică nu e goală.
 
 ### Rapoarte (`/reports`, `/reports/payments`) — Etapa 3
 - **Prezentare**: azi (libere la noapte / ocupate / check-in / check-out + lista libere), ocupare pe nopți (30 în urmă, 14 rezervate înainte), canale pe 30 de zile (donut + rezervări + nopți). Cache `report_cache` (cheia `operations`), recalculat de cron sau de butonul ↻ (doar edit).
@@ -286,7 +291,10 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 - Apartamentele fără tarif apar marcate **„tarif implicit"** + avertizare sus (vechiul le plătea tăcut cu 60 RON). Totalul rămâne identic cu raportul vechi.
 - ONE nu mai scrie coloanele Previo în `inventar_apartamente`; le citește live (cache 5 min). Butonul „Sync Previo" din aplicația veche rămâne pentru ea.
 - Trimiterea raportului pe e-mail nu s-a portat (înlocuită de „Copiază rezumatul"). Se poate adăuga dacă e nevoie.
-- Veniturile nu apar încă: câmpul de preț din Previo trebuie confirmat cu `bin/previo-fields.php`. Rezervările anulate nu sunt filtrate (la fel ca în Etapa 2) — de verificat cu același script.
+- **Statusuri Previo** (verificat 02.10.2026 pe 517 rezervări, `php bin/previo-fields.php --status 60`): `1` opțiune (are `optionExpiration`),
+  `2` confirmată, `3` cazat, `9` plecat. Anulările nu sunt întoarse deloc de `searchReservations`. Opțiunile sunt excluse din ocupare, canale și statusul din Inventar
+  (`Previo::isOption`); Rezervări le afișează în continuare. Canalul vine din `partner/name` (Booking.com XML, AirBnB, Szallas GROUP, Expedia; RESERVATION+ și fără partener → „Direct / altele").
+- Veniturile (`reservation/price`, RON) intră în Etapa 4.
 
 ---
 
@@ -334,7 +342,7 @@ Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt 
 `/inventory`, `/reports[/payments]`, `/users`, `/settings`, `/account`
 **API**: `GET /api/reservations/{list,recent,whatsapp}` · `POST /api/reservations/{status,nuki,whatsapp}` ·
 `GET /api/housekeeping/{checkouts,active-guests}` · `POST /api/housekeeping/{assign,unassign,intermediate,checklist}` ·
-`GET /api/inventory/occupancy` · `POST /api/inventory/{adjust,note}` · `GET /api/reports/today` · `POST /api/reports/{refresh,cleaning,cleaning/delete}`
+`GET /api/inventory/occupancy` · `POST /api/inventory/{adjust,note,batch,tech}` · `GET /api/reports/today` · `POST /api/reports/{refresh,cleaning,cleaning/delete}`
 **Design**: Jost, `#2563eb` / `#1a6fce` (Rezervări), violet `#7c3aed` (Housekeeping), indigo `#4f46e5` (Inventar), teal `#0d9488` (Rapoarte), radius 16 / 12, dark mode.
 
 *Document de continuitate pentru chat-uri viitoare. Update la fiecare etapă.*

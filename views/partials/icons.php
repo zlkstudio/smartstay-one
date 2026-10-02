@@ -46,4 +46,13 @@
   <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5M8 9h8M8 13h4"/></symbol>
   <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 18V6M3 14h18v4M21 18v-6a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="10.5" r="1.8"/></symbol>
+  <symbol id="i-pillow" viewBox="0 0 24 24"><path d="M5 6c3 1 11 1 14 0 1 4 1 8 0 12-3-1-11-1-14 0-1-4-1-8 0-12z"/></symbol>
+  <symbol id="i-towel" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 15h14M9 18h6"/></symbol>
+  <symbol id="i-towel-sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="13" rx="2"/><path d="M6 15h12"/></symbol>
+  <symbol id="i-mat" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7v10M17 7v10"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14.5-3.5L20 7"/><path d="M20 3v4h-4"/><path d="M20 15a8 8 0 0 1-14.5 3.5L4 17"/><path d="M4 21v-4h4"/></symbol>
+  <symbol id="i-tools" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0 5 5l-8.8 8.8a2 2 0 0 1-2.9-2.9L16.6 8.6"/><path d="M14.5 6.5 17 4l3 3-2.5 2.5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
 </svg>

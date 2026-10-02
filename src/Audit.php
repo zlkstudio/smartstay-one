@@ -26,6 +26,8 @@ final class Audit
         // Etapa 3
         'inventory.adjust'        => 'A modificat stocul',
         'inventory.note'          => 'A modificat „Necesar"',
+        'inventory.batch'         => 'A scăzut un set / a adăugat o cutie',
+        'inventory.tech'          => 'A modificat rubrica Tehnic',
         'report.cleaning_add'     => 'A adăugat o curățenie în raport',
         'report.cleaning_delete'  => 'A șters o curățenie din raport',
         'report.refresh'          => 'A recalculat rapoartele',

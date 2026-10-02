@@ -22,7 +22,7 @@ final class HealthCheck
     /** Columns ONE writes to in legacy tables (Inventory v3 added fete_perne_mari + necesar). */
     public const EXPECTED_COLUMNS = [
         'inventory' => [
-            'inventar_apartamente' => ['apartament', 'lenjerie', 'fete_perne_mari', 'prosoape_mari', 'prosoape_mici', 'prosoape_picioare', 'necesar'],
+            'inventar_apartamente' => ['apartament', 'lenjerie', 'fete_perne_mari', 'prosoape_mari', 'prosoape_mici', 'prosoape_picioare', 'necesar', 'tv_app', 'tehnic'],
         ],
     ];
 

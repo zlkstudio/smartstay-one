@@ -167,6 +167,19 @@ final class Previo
         };
     }
 
+    /**
+     * status/statusId on this account (checked 02.10.2026 on 517 reservations):
+     * 1 = option (has optionExpiration, not confirmed) · 2 = confirmed · 3 = checked in · 9 = checked out.
+     * Cancelled reservations are not returned by searchReservations at all.
+     */
+    public const STATUS_OPTION = '1';
+
+    /** Unconfirmed option: kept out of occupancy, channels and the inventory status. */
+    public static function isOption(SimpleXMLElement $r): bool
+    {
+        return (string) $r->status->statusId === self::STATUS_OPTION;
+    }
+
     public static function isConfigured(): bool
     {
         return is_file(ONE_ROOT . '/config/previo.php');

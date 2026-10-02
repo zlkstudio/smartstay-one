@@ -12,7 +12,7 @@ use SimpleXMLElement;
  *
  * One window — check-ins from 90 days ago to 30 days ahead — serves Inventar, the Home
  * indicators and Rapoarte, so Previo is called at most once per 5 minutes for all of them.
- * Parkings are dropped (they are never apartments). The cache holds guest names, so it
+ * Parkings and unconfirmed options (statusId 1) are dropped. The cache holds guest names, so it
  * lives in storage/ (outside the docroot, denied by .htaccess, never deployed over).
  */
 final class Stays
@@ -112,7 +112,7 @@ final class Stays
     private static function normalize(SimpleXMLElement $r): ?array
     {
         $apartment = Previo::apartment($r);
-        if ($apartment === '' || Properties::isParking($apartment)) {
+        if ($apartment === '' || Properties::isParking($apartment) || Previo::isOption($r)) {
             return null;
         }
         $from = (string) $r->term->from;
