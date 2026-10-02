@@ -1,9 +1,9 @@
 # SmartStay ONE — Instrucțiuni
 
-> **Ultima actualizare**: 2 octombrie 2026
+> **Ultima actualizare**: 2 octombrie 2026 (11:25)
 > **Versiune**: 1.1.0-stage2 (Rezervări + Housekeeping portate în ONE)
 > **Țintă**: `one.smartstay.ro` — producție directă, fără staging
-> **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` (Mac Mini)
+> **Local**: `/Users/romeo/Projects/SmartStay/smartstay-one` — același path pe Mac Mini și Mac Studio
 > **Stack**: PHP 8.2+ · PDO · MariaDB 11.4 · vanilla JS · cPanel shared hosting
 
 ---
@@ -11,14 +11,16 @@
 ## 0. Stare curentă
 
 ✅ Repo `zlkstudio/smartstay-one` pe GitHub (main) · `one.smartstay.ro` live, docroot `/public`, SSL
-✅ Fix 403 (`.htaccess` din rădăcina repo-ului eliminat) — pe GitHub
-✅ Baza Rezervări confirmată: `smartconcept_reservations`
-✅ **Etapa 2 scrisă și testată local** (MariaDB + Previo/Nuki simulate, iPhone 390px, light/dark)
-🔲 Push Etapa 2 + `./deploy-one.sh production` (rulează și `sql/002_stage2.sql`)
-🔲 Config-uri noi pe server: `previo.php`, `nuki.php`, `checkin-sync.php` (§6.4)
-🔲 Primul admin creat + `php bin/doctor.php` → ✅ (4/4 baze, menajere potrivite)
-🔲 Conturi menajere (rol Menajeră + numele din listă) și test pe telefon
-🔲 Rotit tokenul Nuki (a apărut în clar într-o sesiune de lucru pe 02.10.2026)
+✅ Etapa 2 pe GitHub — `e73fe09` (push de pe Mac Studio)
+✅ Mac Studio configurat: cheie `id_ed25519_one` + alias `github-one`, clone în `~/Projects/SmartStay/smartstay-one`
+✅ Server: `php bin/doctor.php` → 4/4 baze conectate (inclusiv `smartconcept_reservations`), menajere potrivite
+✅ Server: `previo.php`, `nuki.php`, `database-reservations.php` completate
+🔲 Deploy key server re-adăugat pe GitHub (`ssh -T git@github-one` → „Hi zlkstudio/smartstay-one!")
+🔲 `checkin-sync.php` completat + `./deploy-one.sh production` → doctor arată **1.1.0-stage2** și `whatsapp_outreach`
+🔲 Test pe telefon: Rezervări (toggle, Nuki) + Curățenie (alocare, checklist cu menajera)
+🔲 Conturi menajere (rol Menajeră + numele din listă)
+🔲 Rotit tokenul Nuki (a apărut în clar într-o sesiune de lucru pe 02.10.2026) — în ONE, reservations și guest-app
+🔲 Mac Mini: `git fetch && git reset --hard origin/main` (commit local `a178b0a` = același conținut, alt hash)
 ➡️ Următorul pas: **Etapa 3** — Inventar + Rapoarte (plata menajerelor, cron `report_cache`)
 
 ---
@@ -121,8 +123,39 @@ HTML și `/api/` merg mereu la rețea. Paginile de modul încarcă CSS/JS prin `
 | Config-uri (`chmod 600`, protejate de deploy) | `app.php`, `database-{one,cleaning,inventory,reservations}.php`, `previo.php`, `nuki.php`, `checkin-sync.php` |
 | Cheie GitHub server | `~/.ssh/id_ed25519_one` · alias `github-one` · deploy key read-only |
 
-### 6.1–6.3 Prima instalare, primul admin, Mac nou
+### 6.1–6.2 Prima instalare, primul admin
 Neschimbate față de Etapa 1 (vezi istoricul acestui fișier pe GitHub).
+
+### 6.3 Mac-uri (Mac Mini + Mac Studio) — același path
+Fiecare Mac are cheia lui, adăugată ca **deploy key cu write access** pe `zlkstudio/smartstay-one`
+(cheile repo-urilor vechi sunt per repo → „Repository not found" / „Could not resolve hostname github-one").
+
+| Mac | Cheie | Deploy key pe GitHub |
+|---|---|---|
+| Mac Mini | `~/.ssh/id_ed25519_one` | `macmini-one` |
+| Mac Studio | `~/.ssh/id_ed25519_one` | `Mac Studio` |
+
+Mac nou:
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_one -N "" -C "<mac>-one"
+cat >> ~/.ssh/config <<'EOF2'
+
+Host github-one
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_one
+  IdentitiesOnly yes
+EOF2
+pbcopy < ~/.ssh/id_ed25519_one.pub    # GitHub → smartstay-one → Settings → Deploy keys → ✅ Allow write access
+ssh -T git@github-one                 # „Hi zlkstudio/smartstay-one!"
+mkdir -p /Users/romeo/Projects/SmartStay && cd /Users/romeo/Projects/SmartStay
+git clone git@github-one:zlkstudio/smartstay-one.git
+cd smartstay-one && git config user.name "Romeo" && git config user.email "contact@radoiromeo.ro"
+```
+Config-urile cu parole nu sunt în git și nu se copiază pe Mac.
+
+**Regula cu două Mac-uri**: înainte să lucrezi, `git pull` (sau `git fetch && git reset --hard origin/main`
+dacă ai commit-uri locale deja trimise ca patch de pe celălalt Mac). Lucrul nepush-uit rămâne doar pe Mac-ul acela.
 
 ### 6.4 Etapa 2 — o singură dată pe server
 ```bash
@@ -136,7 +169,10 @@ chmod 600 $T/*.php
 nano $T/previo.php        # username + password din ~/smartstay.ro/guest-app/config/previo.php
 nano $T/nuki.php          # api_token din reservations/config/nuki.php + smartlocks din nuki-smartlocks.php
 nano $T/checkin-sync.php  # identic cu ~/smartstay.ro/reservations/config/checkin-sync.php
-nano $T/database-reservations.php   # database => smartconcept_reservations + user/parolă
+# database-reservations.php: același user ca Housekeeping, doar alt nume de bază
+cp $T/database-cleaning.php $T/database-reservations.php
+sed -i "s/smartconcept_cleaning/smartconcept_reservations/" $T/database-reservations.php
+#   „Access denied" în doctor → user/parolă din ~/smartstay.ro/reservations/config/database.php (DB_USER/DB_PASS)
 nano $T/app.php           # adaugă cheile noi din config/app.example.php: guest_app_url, housekeeping
 
 cd ~ && ./deploy-one.sh production     # aplică sql/002_stage2.sql
@@ -153,13 +189,15 @@ cd ~/one.smartstay.ro && php bin/doctor.php
 ## 7. Deploy — rutina
 
 ```bash
-# Mac
+# Mac (Mini sau Studio)
 cd /Users/romeo/Projects/SmartStay/smartstay-one
+git pull                                   # întâi ia ce s-a urcat de pe celălalt Mac
 git push origin main && git log origin/main --oneline -1
 # Server
 ssh smartstay && ./deploy-one.sh production    # rollback: ./deploy-one.sh rollback production
 ```
 Patch-uri primite din chat: `git am ~/Downloads/000X-….patch && git push origin main`, apoi deploy.
+Un patch aplicat pe un Mac creează alt hash decât același patch pe celălalt → pe al doilea Mac: `git fetch && git reset --hard origin/main`.
 ⚠️ Scriptul face `git reset --hard origin/main` — commit-urile nepush-uite nu ajung pe server.
 
 ---
@@ -201,6 +239,11 @@ Patch-uri primite din chat: `git am ~/Downloads/000X-….patch && git push origi
 
 | Simptom | Cauză / verificare |
 |---|---|
+| `deploy-one.sh`: `git@github.com: Permission denied (publickey)` | Deploy key-ul serverului lipsește de pe GitHub → `cat ~/.ssh/id_ed25519_one.pub` → Deploy keys (read-only) |
+| `doctor` arată încă `1.0.0-stage1` | Deploy-ul n-a rulat / a eșuat → `./deploy-one.sh production` |
+| `nano config/….php` deschide „New File" | Fișierul nu există — ieși (Ctrl+X, N) și copiază-l întâi din `*.example.php` |
+| `Could not resolve hostname github-one` | Lipsește blocul `Host github-one` din `~/.ssh/config` pe Mac-ul ăsta → §6.3 |
+| `Repository not found` la clone/push | Cheia Mac-ului nu e deploy key (cu write) pe `smartstay-one` → §6.3 |
 | „Lipsește config/previo.php" pe Rezervări/Curățenie | §6.4 |
 | „Previo a răspuns cu eroare (401)" | username/parolă din `previo.php` — copiază din Guest App |
 | Nuki: „nu are yală Nuki configurată" | apartamentul lipsește din `smartlocks` în `config/nuki.php` |
