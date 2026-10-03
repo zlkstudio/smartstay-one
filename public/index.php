@@ -73,6 +73,7 @@ $router->post('/login', static fn() => AuthController::login());
 $router->post('/logout', static fn() => AuthController::logout());
 
 $router->get('/', static fn() => PageController::home());
+$router->get('/home/body', static fn() => PageController::maidHomeBody());
 $router->get('/account', static fn() => AuthController::account());
 $router->get('/account/password', static fn() => AuthController::showPassword());
 $router->post('/account/password', static fn() => AuthController::changePassword());

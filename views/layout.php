@@ -33,6 +33,7 @@ $showNav = count($navItems) > 1;
 <?php require ONE_ROOT . '/views/partials/head.php'; ?>
 </head>
 <body data-page="<?= h($active ?? '') ?>">
+<?php require ONE_ROOT . '/views/partials/splash.php'; ?>
 <?php require ONE_ROOT . '/views/partials/icons.php'; ?>
 
 <header class="topbar">

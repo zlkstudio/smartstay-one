@@ -98,6 +98,7 @@
         if (alertNext) body.before(document.importNode(alertNext, true));
         body.replaceWith(document.importNode(next, true));
         initBody();
+        document.dispatchEvent(new Event('one:ready'));
       })
       .catch((e) => {
         clearTimeout(timer);
@@ -109,6 +110,7 @@
         body.innerHTML = '<div class="alert alert-error" role="alert"><span>Raportul nu s-a putut încărca. ' +
           msg.replace(/[<>&]/g, '') + '</span></div><button type="button" class="btn btn-secondary" data-body-retry>Încearcă din nou</button>';
         body.querySelector('[data-body-retry]').addEventListener('click', () => location.reload());
+        document.dispatchEvent(new Event('one:ready'));
       });
   }
 

@@ -30,6 +30,14 @@ $installGate = $installGate ?? true;
   var theme = store && store.getItem('one-theme');
   if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', theme);
+
+  // Splash: once per app launch (session), before the first paint. app.js hides it on load.
+  try {
+    if (!window.sessionStorage.getItem('one-splash')) {
+      window.sessionStorage.setItem('one-splash', '1');
+      document.documentElement.classList.add('splash-on');
+    }
+  } catch (e) {}
 <?php if ($installGate): ?>
   // First visit in a browser tab → install page. Never inside the installed app.
   var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;

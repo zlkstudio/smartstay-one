@@ -60,6 +60,24 @@ final class PageController
      */
     private static function maidHome(array $user): never
     {
+        // Shell at once (greeting + skeleton); the day itself comes from /home/body.
+        view('pages/home-maid-shell', [
+            'user'      => $user,
+            'pageTitle' => 'Acasă',
+            'active'    => 'home',
+            'src'       => '/home/body' . (isset($_GET['welcome']) ? '?welcome=1' : ''),
+            'styles'    => ['assets/css/modules.css'],
+        ]);
+    }
+
+    /** GET /home/body — Acasă · Menajeră as an HTML fragment (Previo + Housekeeping + Inventar). */
+    public static function maidHomeBody(): never
+    {
+        $user = Guard::requireLogin();
+        if (!Access::isMaid($user)) {
+            http_response_code(403);
+            exit;
+        }
         $maid = Access::maidName($user);
         $today = date('Y-m-d');
         $tomorrow = date('Y-m-d', strtotime('+1 day'));
@@ -146,10 +164,9 @@ final class PageController
             error_log('[ONE] home critical stock: ' . $e->getMessage());
         }
 
+        header('Cache-Control: no-store');
         view('pages/home-maid', [
             'user'      => $user,
-            'pageTitle' => 'Acasă',
-            'active'    => 'home',
             'mine'      => $mine,
             'free'      => array_values($free),
             'tomorrow'  => $tomorrowList,
@@ -157,8 +174,7 @@ final class PageController
             'week'      => $week,
             'critical'  => $critical,
             'error'     => $maid === null ? 'Contul tău nu e legat de o menajeră din listă. Anunță administratorul.' : $error,
-            'styles'    => ['assets/css/modules.css'],
-        ]);
+        ], null);
     }
 
     public static function settings(): never

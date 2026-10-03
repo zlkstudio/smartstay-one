@@ -18,6 +18,35 @@
     });
   }
 
+  // ── Splash: stays while the page loads — and, on pages with a deferred block, until its data
+  // has arrived — but never more than 3.5 s from launch. Min. 600 ms on screen.
+  var splashState = { loaded: false, ready: false, hidden: false };
+  function hideSplash() {
+    var html = document.documentElement;
+    var splash = document.getElementById('splash');
+    if (splashState.hidden || !splash || !html.classList.contains('splash-on')) return;
+    splashState.hidden = true;
+    setTimeout(function () {
+      splash.classList.add('is-done');
+      setTimeout(function () {
+        splash.classList.add('is-hidden');
+        setTimeout(function () { html.classList.remove('splash-on'); }, 260);
+      }, 200);
+    }, Math.max(0, 600 - performance.now()));
+  }
+  function checkSplash() { if (splashState.loaded && splashState.ready) hideSplash(); }
+  if (document.documentElement.classList.contains('splash-on')) {
+    // Listening from the start: a fast answer (or an error) can come before "load".
+    document.addEventListener('one:ready', function () { splashState.ready = true; checkSplash(); });
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!document.querySelector('[data-defer], [data-report-body][data-src]')) splashState.ready = true;
+      checkSplash();
+    });
+    var onLoad = function () { splashState.loaded = true; checkSplash(); };
+    if (document.readyState === 'complete') onLoad(); else window.addEventListener('load', onLoad);
+    setTimeout(hideSplash, Math.max(0, 3500 - performance.now()));   // cap, counted from launch
+  }
+
   // ── Toasts ──────────────────────────────────────────────────────────────
   function toast(message, ms) {
     var box = document.getElementById('toasts');
@@ -175,7 +204,56 @@
 
     initUserForm();
     initUserList();
+    initDeferred();
   });
+
+  // ── Deferred blocks: the page is sent at once with a skeleton; the slow part
+  // (Previo, calcule) comes as an HTML fragment and replaces it: <div data-defer="/home/body">.
+  function initDeferred() {
+    var blocks = document.querySelectorAll('[data-defer]');
+    for (var i = 0; i < blocks.length; i++) loadDeferred(blocks[i]);
+  }
+
+  function loadDeferred(block) {
+    var url = block.getAttribute('data-defer');
+    var path = url.split('?')[0];
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 60000);
+    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }, signal: controller.signal })
+      .then(function (r) {
+        clearTimeout(timer);
+        if (new URL(r.url).pathname !== path) {   // session expired → login page
+          location.href = '/login?expired=1&next=' + encodeURIComponent(location.pathname + location.search);
+          throw new Error('redirect');
+        }
+        if (!r.ok) throw new Error('Eroare ' + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var next = doc.body.firstElementChild;
+        if (!next) throw new Error('Răspuns gol de la server.');
+        block.replaceWith(document.importNode(next, true));
+        document.dispatchEvent(new Event('one:ready'));
+      })
+      .catch(function (e) {
+        clearTimeout(timer);
+        if (e.message === 'redirect') return;
+        var status = block.querySelector('[data-defer-status]');
+        if (status) status.textContent = 'Datele nu s-au putut încărca.';
+        var box = document.createElement('div');
+        box.className = 'stack-sm';
+        box.innerHTML = '<div class="alert alert-error" role="alert"><span></span></div>' +
+          '<button type="button" class="btn btn-secondary">Încearcă din nou</button>';
+        box.querySelector('span').textContent = e.name === 'AbortError' ? 'Serverul răspunde greu. Încearcă din nou.' : e.message;
+        box.querySelector('button').addEventListener('click', function () { location.reload(); });
+        var hero = block.querySelector('.hero');
+        if (hero) hero.after(box); else block.prepend(box);
+        Array.prototype.forEach.call(block.querySelectorAll('.skeleton'), function (s) { s.style.animation = 'none'; });
+        block.removeAttribute('aria-busy');
+        document.dispatchEvent(new Event('one:ready'));
+      });
+  }
 
   // ── Users: form shows maid / permission fields per role ────────────────
   function initUserForm() {

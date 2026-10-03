@@ -402,3 +402,27 @@ button.list-item { width: 100%; background: none; border-left: 0; border-right: 
 .is-entering > .card:nth-child(3) { animation-delay: 60ms; }
 .is-entering > .card:nth-child(4) { animation-delay: 90ms; }
 [data-reports] .kpi, [data-reports] .stat { animation: one-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+
+/* ── Splash la deschidere (1.4.7) ───────────────────────────────────────
+   Doar transform/opacity. Bara urcă la 85 % cât se încarcă pagina; app.js o duce la 100 %
+   pe evenimentul load și estompează ecranul. Siguranță: dispare singur după 5 s. */
+.splash { display: none; }
+html.splash-on .splash {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: var(--bg); padding: var(--safe-top) 24px var(--safe-bottom);
+  animation: splash-safety 0.25s ease-out 5s forwards;
+}
+html.splash-on body { overflow: hidden; }
+.splash-inner { display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.splash-logo { height: 64px; width: auto; }
+.splash-bar { width: 148px; height: 4px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.splash-bar span { display: block; height: 100%; border-radius: 99px; background: var(--blue-grad);
+  transform-origin: 0 50%; transform: scaleX(0); animation: splash-fill 1.8s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+.splash.is-done .splash-bar span { animation: splash-finish 0.18s ease-out forwards; }
+.splash.is-hidden { opacity: 0; transition: opacity 0.25s ease-out; }
+@keyframes splash-fill { from { transform: scaleX(0.04); } to { transform: scaleX(0.85); } }
+@keyframes splash-finish { from { transform: scaleX(0.85); } to { transform: scaleX(1); } }
+@keyframes splash-safety { to { opacity: 0; visibility: hidden; } }
+.splash .splash-logo.show-dark { display: none; }
+:root[data-theme="dark"] .splash .splash-logo.show-light { display: none; }
+:root[data-theme="dark"] .splash .splash-logo.show-dark { display: block; }

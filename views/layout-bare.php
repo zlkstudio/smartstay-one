@@ -7,6 +7,7 @@
 <?php require ONE_ROOT . '/views/partials/head.php'; ?>
 </head>
 <body>
+<?php require ONE_ROOT . '/views/partials/splash.php'; ?>
 <?php require ONE_ROOT . '/views/partials/icons.php'; ?>
 <?= $content ?>
 <div class="toasts" id="toasts" aria-live="polite"></div>
