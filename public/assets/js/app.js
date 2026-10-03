@@ -175,7 +175,99 @@
 
     initUserForm();
     initUserList();
+    initBottomNav();
   });
+
+  // ── Bottom navigation: one shared pill on spring.settle, directional screen change ──
+  // Each tab is a page load. On tap the pill, icon and colour move at once (the page keeps
+  // loading underneath); the next page resumes the pill from its in-flight position and
+  // <main> slides through a cross-document view transition (motion.css + head.php).
+  function initBottomNav() {
+    var nav = document.querySelector('.bottom-nav');
+    var M = window.MOTION;
+    if (!nav || !M) return;
+    var items = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+    var home = -1;
+    for (var i = 0; i < items.length; i++) if (items[i].classList.contains('is-active')) home = i;
+    var indicator = nav.querySelector('.nav-indicator');
+    var html = document.documentElement;
+    var target = home;
+
+    function pill(item) { return item.querySelector('.nav-pill'); }
+
+    // Resume from the previous page's offset, then settle home on the spring.
+    if (indicator && html.style.getPropertyValue('--nav-ind-dx')) {
+      if (html.getAttribute('data-nav-to') !== String(home)) {
+        indicator.classList.add('no-transition');
+        html.style.removeProperty('--nav-ind-dx');
+        void indicator.offsetWidth;
+        indicator.classList.remove('no-transition');
+      } else {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { html.style.removeProperty('--nav-ind-dx'); });
+        });
+      }
+      html.removeAttribute('data-nav-to');
+    }
+
+    function offsetTo(index) {
+      if (!indicator || index < 0) return null;
+      return indicator.getBoundingClientRect().left - pill(items[index]).getBoundingClientRect().left;
+    }
+
+    function remember() {
+      if (target === home) return;
+      try {
+        var href = items[target].getAttribute('href') || '/';
+        sessionStorage.setItem('one-nav', JSON.stringify({
+          from: home, to: target, dx: offsetTo(target), path: href, t: Date.now()
+        }));
+      } catch (e) { /* private mode: plain navigation */ }
+    }
+
+    nav.addEventListener('click', function (event) {
+      var item = event.target.closest('.nav-item');
+      if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+      var to = items.indexOf(item);
+      if (to === target) return;
+      target = to;
+      M.haptic(); // once per selection, not per frame
+
+      for (var j = 0; j < items.length; j++) {
+        var on = items[j] === item;
+        items[j].classList.toggle('is-active', on);
+        if (on) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
+      }
+
+      if (indicator) {
+        // Retarget: the CSS transition starts from wherever the pill is right now.
+        var dx = pill(item).getBoundingClientRect().left - pill(items[home]).getBoundingClientRect().left;
+        if (M.reduced()) indicator.classList.add('no-transition');
+        indicator.style.transform = 'translateX(' + dx.toFixed(1) + 'px)';
+        indicator.setAttribute('data-tone', item.getAttribute('data-module'));
+        if (M.reduced()) { void indicator.offsetWidth; indicator.classList.remove('no-transition'); }
+      }
+      remember();
+    });
+
+    // Capture the in-flight pill as late as possible: when the old page is swapped out.
+    window.addEventListener('pageswap', remember);
+    window.addEventListener('pagehide', remember);
+
+    // Coming back through the back/forward cache: the old page is shown as it was left.
+    window.addEventListener('pageshow', function (event) {
+      if (!event.persisted || target === home) return;
+      target = home;
+      for (var j = 0; j < items.length; j++) {
+        items[j].classList.toggle('is-active', j === home);
+        if (j === home) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
+      }
+      if (indicator) {
+        indicator.style.transform = '';
+        indicator.setAttribute('data-tone', items[home].getAttribute('data-module'));
+      }
+    });
+  }
 
   // ── Users: form shows maid / permission fields per role ────────────────
   function initUserForm() {

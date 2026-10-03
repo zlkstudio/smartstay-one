@@ -365,14 +365,14 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
     <!-- 10 · Trend lunar -->
     <?php
       $mo = $page['monthly'];
-      $active = array_values(array_filter($mo['months'], static fn(array $m): bool => $m['kpis']['total'] > 0));
-      $W = 360; $H = 150; $pad = 18; $cnt = max(1, count($active)); $colW = ($W - 2 * $pad) / $cnt;
-      $maxRev = max(1.0, ...array_map(static fn(array $m): float => $m['kpis']['revenue'], $active ?: [['kpis' => ['revenue' => 0.0]]]));
-      $maxMoney = max(1.0, ...array_map(static fn(array $m): float => (float) ($m['kpis']['adr'] ?? 0), $active ?: [['kpis' => ['adr' => 0.0]]]));
+      $activeMonths = array_values(array_filter($mo['months'], static fn(array $m): bool => $m['kpis']['total'] > 0));
+      $W = 360; $H = 150; $pad = 18; $cnt = max(1, count($activeMonths)); $colW = ($W - 2 * $pad) / $cnt;
+      $maxRev = max(1.0, ...array_map(static fn(array $m): float => $m['kpis']['revenue'], $activeMonths ?: [['kpis' => ['revenue' => 0.0]]]));
+      $maxMoney = max(1.0, ...array_map(static fn(array $m): float => (float) ($m['kpis']['adr'] ?? 0), $activeMonths ?: [['kpis' => ['adr' => 0.0]]]));
       $xAt = static fn(int $i): float => $pad + $colW * ($i + 0.5);
-      $line = static function (string $key, float $max) use ($active, $xAt, $H): string {
+      $line = static function (string $key, float $max) use ($activeMonths, $xAt, $H): string {
           $pts = [];
-          foreach ($active as $i => $m) {
+          foreach ($activeMonths as $i => $m) {
               $pts[] = round($xAt($i), 1) . ',' . round($H - 20 - (((float) ($m['kpis'][$key] ?? 0)) / $max) * ($H - 34), 1);
           }
           return implode(' ', $pts);
@@ -383,7 +383,7 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
       <div class="card stack-sm">
         <div class="row faint trend-legend"><span><i class="lg-col"></i>venit</span><span><i class="lg-line"></i>ocupare %</span></div>
         <svg class="trend" viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="Venit lunar și ocupare">
-          <?php foreach ($active as $i => $m): $h = ($m['kpis']['revenue'] / $maxRev) * ($H - 34); ?>
+          <?php foreach ($activeMonths as $i => $m): $h = ($m['kpis']['revenue'] / $maxRev) * ($H - 34); ?>
             <rect class="trend-col<?= $m['current'] ? ' is-current' : '' ?>" x="<?= round($pad + $colW * $i + 3, 1) ?>" y="<?= round($H - 20 - $h, 1) ?>" width="<?= round(max(2, $colW - 6), 1) ?>" height="<?= round(max(0, $h), 1) ?>" rx="3">
               <title><?= h(Period::monthShort($m['month']) . ': ' . $lei($m['kpis']['revenue']) . ' · ' . $pct($m['kpis']['occupancy'])) ?></title>
             </rect>
@@ -395,12 +395,12 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
       <div class="card stack-sm">
         <div class="row faint trend-legend"><span><i class="lg-line"></i>ADR</span><span><i class="lg-line lg-teal"></i>RevPAR</span></div>
         <svg class="trend" viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="ADR și RevPAR lunar">
-          <?php foreach ($active as $i => $m): ?>
+          <?php foreach ($activeMonths as $i => $m): ?>
             <text class="trend-axis" x="<?= round($xAt($i), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
           <?php endforeach; ?>
           <polyline class="trend-line" points="<?= h($line('adr', $maxMoney)) ?>"/>
           <polyline class="trend-line trend-line-teal" points="<?= h($line('revpar', $maxMoney)) ?>"/>
-          <?php foreach ($active as $i => $m): ?>
+          <?php foreach ($activeMonths as $i => $m): ?>
             <circle class="trend-dot" cx="<?= round($xAt($i), 1) ?>" cy="<?= round($H - 20 - (((float) ($m['kpis']['adr'] ?? 0)) / $maxMoney) * ($H - 34), 1) ?>" r="2.6"><title><?= h(Period::monthShort($m['month']) . ': ADR ' . $lei($m['kpis']['adr'], 1) . ' · RevPAR ' . $lei($m['kpis']['revpar'], 1)) ?></title></circle>
           <?php endforeach; ?>
         </svg>
@@ -411,7 +411,7 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
         <table class="trend-table tabular">
           <thead><tr><th>Luna</th><th>RN</th><th>OCC</th><th>ADR</th><th>RevPAR</th><th>Venit</th></tr></thead>
           <tbody>
-            <?php foreach ($active as $m): $mk = $m['kpis']; ?>
+            <?php foreach ($activeMonths as $m): $mk = $m['kpis']; ?>
               <tr class="<?= $m['current'] ? 'is-current' : '' ?>">
                 <th><?= h(Period::monthShort($m['month'])) ?><?= $m['partial'] ? ' <span class="badge badge-teal">parțial</span>' : '' ?></th>
                 <td><?= (int) $mk['occupied'] ?></td><td><?= h($fix($mk['occupancy'])) ?>%</td>

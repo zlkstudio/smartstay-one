@@ -68,7 +68,7 @@ $showNav = count($navItems) > 1;
     <a href="<?= h($item['href']) ?>" data-module="<?= h($item['key']) ?>"
        class="nav-item<?= $active === $item['key'] ? ' is-active' : '' ?>"
        <?= $active === $item['key'] ? 'aria-current="page"' : '' ?>>
-      <span class="nav-pill"><?= icon($item['icon']) ?></span>
+      <span class="nav-pill"><?php if ($active === $item['key']): ?><span class="nav-indicator" data-tone="<?= h($item['key']) ?>" aria-hidden="true"></span><?php endif; ?><?= icon($item['icon']) ?></span>
       <span><?= h($item['label']) ?></span>
     </a>
   <?php endforeach; ?>

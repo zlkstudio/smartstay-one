@@ -1,0 +1,136 @@
+/* SmartStay ONE — motion layer. Tokens mirror assets/js/motion.js, which overwrites the --spring-*
+   and --dur-* values at load with linear() easings solved from the same damping/stiffness/mass.
+   The cubic-bezier values below are only the pre-JS / no-linear() fallback.
+   Rules: transform + opacity on list items, springs for interaction, exits faster than entrances. */
+
+:root {
+  /* spring.press  — damping 28, stiffness 420, mass 1   */
+  --spring-press: cubic-bezier(0.3, 1.18, 0.5, 1);
+  --dur-press: 567ms;
+  /* spring.settle — damping 22, stiffness 260, mass 0.8 */
+  --spring-settle: cubic-bezier(0.25, 1.08, 0.45, 1);
+  --dur-settle: 533ms;
+  /* spring.pop    — damping 14, stiffness 320 (status chip only) */
+  --spring-pop: cubic-bezier(0.3, 1.6, 0.5, 1);
+  --dur-pop: 1083ms;
+  /* ease.exit */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --dur-exit: 160ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --dur-color: 180ms;
+}
+
+/* ── Press: reservation cards ────────────────────────────────────────────
+   The resting shadow lives on a pseudo-element so "drop one step" is an opacity change. */
+.res-card { position: relative; box-shadow: none; transform-origin: 50% 50%;
+  transition: transform var(--dur-press) var(--spring-press), border-left-color 220ms var(--ease-out); }
+.res-card::after { content: ''; position: absolute; inset: -1px -1px -1px -4px; z-index: -1; border-radius: inherit;
+  box-shadow: var(--shadow); pointer-events: none; transition: opacity var(--dur-press) var(--spring-press); }
+.res-list { position: relative; isolation: isolate; }
+.res-card:active:not(:has(button:active, a:active)) { transform: scale(0.985); }
+.res-card:active:not(:has(button:active, a:active))::after { opacity: 0.45; }
+.res-card.is-leaving { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; z-index: -1; }
+
+/* Pull-to-refresh owns the top overscroll on pages that use it. */
+html.ptr, html.ptr body { overscroll-behavior-y: none; }
+
+/* WhatsApp: 1.06 pop on press only. */
+.act-whatsapp .icon { transition: transform var(--dur-pop) var(--spring-pop); }
+.act-whatsapp:active .icon { transform: scale(1.06); }
+
+/* Optional alert strips mount with a width reveal + fade (160 ms). */
+.strip.is-mounting { animation: strip-in 160ms var(--ease-out) both; }
+@keyframes strip-in { from { clip-path: inset(0 100% 0 0 round 12px); opacity: 0; } to { clip-path: inset(0 0 0 0 round 12px); opacity: 1; } }
+
+/* ── Status chip (toggle-card) ───────────────────────────────────────── */
+.toggle-card { transition: border-color 220ms var(--ease-out), background-color 220ms var(--ease-out); }
+.toggle-card__icon, .switch { transition: background-color 220ms var(--ease-out), color 220ms var(--ease-out); }
+.switch::after { transition: transform var(--dur-press) var(--spring-press); }
+.toggle-card__hint { display: inline-flex; align-self: flex-start; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; white-space: nowrap;
+  transition: color 220ms var(--ease-out); }
+.status-check { width: 13px; height: 13px; flex: none; stroke-width: 2.6; stroke-dasharray: 24; stroke-dashoffset: 0; }
+.status-check.is-drawing { animation: check-draw 280ms var(--ease-out) both; }
+@keyframes check-draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+
+/* ── Text swap (phone "Copiat", Nuki "Trimis") ───────────────────────── */
+.swap { display: inline-grid; overflow: hidden; vertical-align: bottom; }
+.swap > span { grid-area: 1 / 1; white-space: nowrap; }
+
+/* ── Shared layout pill for chip groups ──────────────────────────────── */
+.chips.has-pill { position: relative; isolation: isolate; }
+.chip-thumb { position: absolute; z-index: -1; top: 2px; left: 0; height: 36px; width: 0; border-radius: var(--r-pill);
+  background: var(--blue); opacity: 0; pointer-events: none; will-change: transform;
+  transition: transform var(--dur-settle) var(--spring-settle), width var(--dur-settle) var(--spring-settle); }
+.chip-thumb.no-transition { transition: none; }
+.chips.has-pill .chip { transition: color var(--dur-color) var(--ease-out), border-color var(--dur-color) var(--ease-out); }
+.chips.has-pill .chip.is-active { background: transparent; border-color: transparent; }
+.chips-teal .chip-thumb { background: var(--teal); }
+.period-bar .chips.has-pill .chip-thumb { height: 34px; }
+
+/* ── Bottom navigation: one indicator, springs, no fade ──────────────── */
+.nav-item { transition: color var(--dur-color) var(--ease-out); -webkit-tap-highlight-color: transparent; }
+.nav-item .nav-pill { position: relative; }
+.nav-item .icon { transition: transform var(--dur-settle) var(--spring-settle); }
+.nav-item.is-active .icon { transform: translateY(-1px) scale(1.08); }
+.nav-indicator { position: absolute; inset: 0; z-index: -1; border-radius: var(--r-pill); background: var(--blue-soft);
+  transform: translateX(var(--nav-ind-dx, 0px)); will-change: transform;
+  transition: transform var(--dur-settle) var(--spring-settle), background-color var(--dur-color) var(--ease-out); }
+.nav-indicator.no-transition { transition: none; }
+.nav-indicator[data-tone="housekeeping"] { background: var(--violet-soft); }
+.nav-indicator[data-tone="inventory"] { background: var(--indigo-soft); }
+.nav-indicator[data-tone="reports"] { background: var(--teal-soft); }
+
+/* Daynav thumb (Astăzi / Mâine / …) moves on the settle spring. */
+.daynav-thumb { transition: transform var(--dur-settle) var(--spring-settle); }
+
+/* ── Screen change between bottom tabs (cross-document View Transitions) ─
+   Topbar + tab bar are part of the root snapshot, which swaps instantly: they never move.
+   Only <main> travels: 18 %, directional, old 200 ms + new 280 ms overlapping by 80 ms. */
+@view-transition { navigation: auto; }
+.main { view-transition-name: main; }
+::view-transition { pointer-events: none; }
+::view-transition-old(root) { display: none; }
+::view-transition-new(root) { animation: none; }
+::view-transition-group(main) { animation: none; }
+::view-transition-old(main), ::view-transition-new(main) { mix-blend-mode: normal; height: auto; }
+
+html[data-vt="right"]::view-transition-old(main) { animation: vt-out-left 200ms var(--ease-out) both; }
+html[data-vt="right"]::view-transition-new(main) { animation: vt-in-right 280ms var(--ease-out) 120ms both; }
+html[data-vt="left"]::view-transition-old(main)  { animation: vt-out-right 200ms var(--ease-out) both; }
+html[data-vt="left"]::view-transition-new(main)  { animation: vt-in-left 280ms var(--ease-out) 120ms both; }
+html[data-vt="fade"]::view-transition-old(main)  { animation: vt-fade-out 120ms linear both; }
+html[data-vt="fade"]::view-transition-new(main)  { animation: vt-fade-in 120ms linear both; }
+
+@keyframes vt-out-left  { 70% { opacity: 0.92; } to { transform: translateX(-18%); opacity: 0; } }
+@keyframes vt-out-right { 70% { opacity: 0.92; } to { transform: translateX(18%); opacity: 0; } }
+@keyframes vt-in-right  { from { transform: translateX(18%); opacity: 0; } }
+@keyframes vt-in-left   { from { transform: translateX(-18%); opacity: 0; } }
+@keyframes vt-fade-out  { to { opacity: 0; } }
+@keyframes vt-fade-in   { from { opacity: 0; } }
+
+/* ── Reports ─────────────────────────────────────────────────────────── */
+/* Headline numbers wait (max 1.2 s) for motion.js to start counting, so the final value never
+   flashes before the count from 0. If the script never runs they appear on their own. */
+html.has-motion [data-reports] .kpi-grid .kpi-value:not([data-counted]),
+html.has-motion [data-reports] .stat-grid .stat-value:not([data-counted]) { animation: count-hold 0s linear 1.2s both; }
+@keyframes count-hold { from { opacity: 0; } to { opacity: 1; } }
+.report-body { transition: opacity 180ms var(--ease-out); }
+/* Opacity only: transforms on bars are driven by motion.js (a CSS transform transition would
+   outrank the WAAPI grow animation in the cascade). */
+.bar > span { transform-origin: 50% 100%; transition: opacity var(--dur-color) var(--ease-out); }
+.bars.has-selection .bar:not(.is-selected) > span { opacity: 0.45; }
+.bars-blue.has-selection .bar:not(.is-selected) > span { opacity: 0.38; }
+.bar.is-selected > span { box-shadow: none; }
+.wk-col > span, .trend-col { transform-origin: 50% 100%; transform-box: fill-box; }
+.hbar-track > span, .occ-track > span { transform-origin: 0 50%; }
+.donut[data-sweep] { -webkit-mask: conic-gradient(#000 calc(var(--sweep, 100) * 1%), transparent 0);
+  mask: conic-gradient(#000 calc(var(--sweep, 100) * 1%), transparent 0); }
+
+/* Reduced motion: crossfades only. app.css already collapses CSS durations; the JS engine drops
+   translate / scale / overshoot and keeps 120 ms opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .res-card:active:not(:has(button:active, a:active)) { transform: none; }
+  .nav-item.is-active .icon { transform: none; }
+  .act-whatsapp:active .icon { transform: none; }
+  .status-check.is-drawing { animation: none; }
+}
