@@ -495,3 +495,8 @@ button.apt-row:active { background: var(--surface-2); }
 .activity-dot[data-kind="inventory"] { background: var(--indigo); }
 .activity-dot[data-kind="reservation"] { background: var(--blue); }
 .activity-dot[data-kind="report"] { background: var(--teal); }
+
+/* Animații ușoare (1.4.5): apăsare pe toggle-uri și pe bare; restul e în app.css. */
+.toggle-card { transition: border-color 0.15s, background 0.15s, transform 0.12s; }
+.toggle-card:active:not(:disabled) { transform: scale(0.97); }
+button.bar:active > span { opacity: 0.7; }

@@ -381,3 +381,24 @@ button.list-item { width: 100%; background: none; border-left: 0; border-right: 
 .push-prompt-actions { display: flex; gap: 8px; }
 @media (min-width: 900px) { .push-prompt { left: auto; right: 24px; width: 380px; bottom: 24px; } }
 @media (prefers-reduced-motion: reduce) { .push-prompt { transition: none; } }
+
+/* ── Animații ușoare (1.4.5) ─────────────────────────────────────────────
+   Doar transform/opacity, max. 200 ms, pornite de o stare (tap sau încărcarea unei liste).
+   Fără JS de animație, fără will-change, fără nimic care rulează continuu. Reduced motion
+   le anulează prin regula globală de mai sus. */
+.chip { transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.12s; }
+.chip:active { transform: scale(0.96); }
+.icon-btn { transition: background-color 0.15s, transform 0.12s; }
+.icon-btn:active { transform: scale(0.92); }
+.nav-item { -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: color 0.15s; }
+.nav-item .icon { transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.nav-item:active .icon { transform: scale(0.88); }
+.nav-item.is-active .icon { transform: translateY(-1px); }
+
+/* Liste și cifre: o singură intrare, la încărcare (primele 4 elemente, 30 ms între ele). */
+@keyframes one-rise { from { opacity: 0; transform: translateY(6px); } }
+.is-entering > .card:nth-child(-n+4) { animation: one-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.is-entering > .card:nth-child(2) { animation-delay: 30ms; }
+.is-entering > .card:nth-child(3) { animation-delay: 60ms; }
+.is-entering > .card:nth-child(4) { animation-delay: 90ms; }
+[data-reports] .kpi, [data-reports] .stat { animation: one-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }

@@ -73,6 +73,12 @@
     return isRo ? 'Bună seara' : 'Good evening';
   }
 
+  // Cards rise in once after a load (CSS, primele 4); a filter or toggle re-render does not replay it.
+  function enterList() {
+    $list.classList.add('is-entering');
+    setTimeout(() => $list.classList.remove('is-entering'), 400);
+  }
+
   // Tab bar: slide the thumb to the tapped tab while the next page loads.
   const daynav = root.querySelector('[data-daynav]');
   if (daynav) {
@@ -235,6 +241,7 @@
           state.rows = data.reservations || [];
           state.statuses = data.statuses || {};
           render();
+          enterList();
         })
         .catch((e) => {
           $list.innerHTML = '';
@@ -441,6 +448,7 @@
           const errs = Object.values(data.errors || {});
           if (errs.length) showError('Unele ferestre nu s-au încărcat: ' + errs[0]);
           render();
+          enterList();
         })
         .catch((e) => {
           state.loaded = true;
