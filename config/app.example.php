@@ -34,6 +34,10 @@ return [
     // Guest App links generated in Rezervări (production URL, no trailing slash).
     'guest_app_url' => 'https://smartstay.ro/guest-app',
 
+    // Guest App check-in state (status.json per rezervare), citit direct de pe disc pentru notificarea
+    // „numerar pe masă" din Curățenie. Implicit: ~/shared/guest-app/data/checkin (ținta symlink-ului).
+    // 'guest_app_checkin_dir' => '/home/smartconcept/shared/guest-app/data/checkin',
+
     // Housekeeping checklist e-mail (same addresses as housekeeping/config/app_config.php).
     'housekeeping' => [
         'report_to' => 'cleaning@smartconceptliving.ro',

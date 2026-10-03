@@ -47,6 +47,7 @@
     const $bar = root.querySelector('[data-assign-bar]');
     const $sel = root.querySelector('[data-selected]');
     let rows = [];
+    let doors = {}; // apartment → last 2 Nuki events
 
     function syncBar() {
       if (!$bar) return;
@@ -65,6 +66,34 @@
       return '<span class="badge badge-warning">Nealocat</span>';
     }
 
+    function money(v) { return Number(v).toLocaleString('ro-RO', { maximumFractionDigits: 2 }); }
+
+    // Departing guest chose cash at check-in → the money waits on the kitchen table.
+    function cashNotice(r) {
+      if (!r.cashDue) return '';
+      return `<span class="hk-cash">${icon('alert')}<span>Oaspetele trebuie să lase <strong class="tabular">${money(r.cashDue)} LEI</strong> numerar pe masa din bucătărie. Ridică banii și anunță.</span></span>`;
+    }
+
+    function doorTime(iso) {
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      const hm = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+      const today = new Date();
+      return d.toDateString() === today.toDateString()
+        ? hm
+        : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
+    }
+
+    function doorLog(r) {
+      if (!r.hasLock) return '';
+      const events = doors[r.apartment];
+      if (events === undefined) return '<span class="hk-door is-loading">Nuki…</span>';
+      if (!events.length) return '<span class="hk-door">Nuki: fără evenimente recente</span>';
+      return '<span class="hk-door">' + events.map((e) =>
+        `<span>${esc(doorTime(e.at))} · ${esc(e.action)}${e.via ? ' · ' + esc(e.via) : ''}${e.name ? ' · ' + esc(e.name) : ''}${e.ok ? '' : ' · eșuat'}</span>`
+      ).join('') + '</span>';
+    }
+
     function card(r) {
       const on = selected.has(r.apartment);
       const canPick = pickable(r);
@@ -77,6 +106,8 @@
           <span class="list-title">${SELF ? 'Apartament ' + esc(r.apartment) : esc(r.guest)}</span>
           <span class="list-sub">${sub}</span>
           <span class="hk-status">${status(r)}</span>
+          ${cashNotice(r)}
+          ${doorLog(r)}
         </span>
         <span class="hk-side">
           ${canChecklist ? `<a class="link-btn" href="/housekeeping/checklist/${encodeURIComponent(r.apartment)}">Checklist</a>` : ''}
@@ -103,10 +134,24 @@
           // Drop selections that are no longer pickable.
           [...selected].forEach((a) => { if (!rows.some((r) => r.apartment === a && pickable(r))) selected.delete(a); });
           render();
+          loadDoors();
         })
         .catch((e) => { $list.innerHTML = ''; showError('Nu s-au putut încărca apartamentele: ' + e.message); });
     }
     loader = load;
+
+    // Nuki is slow-ish: cards first, door events after. A failure only hides the lines.
+    function loadDoors() {
+      const apts = rows.filter((r) => r.hasLock).map((r) => r.apartment);
+      if (!apts.length) return;
+      window.ONE.api('/api/housekeeping/door-log?apartments=' + encodeURIComponent(apts.join(',')), { timeout: 30000 })
+        .then((data) => {
+          const logs = data.logs || {};
+          apts.forEach((a) => { doors[a] = logs[a] || []; });
+          render();
+        })
+        .catch(() => { apts.forEach((a) => { doors[a] = []; }); rows.forEach((r) => { if (apts.includes(r.apartment)) r.hasLock = false; }); render(); });
+    }
 
     function togglePick(el) {
       const apt = el.dataset.apt;

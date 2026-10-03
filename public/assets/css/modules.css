@@ -134,6 +134,13 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 .hk-card.is-selected { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
 .hk-card.is-selected .pick { background: var(--violet); border-color: var(--violet); color: #fff; }
 .hk-card.is-taken { opacity: 0.55; }
+.hk-cash { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: var(--r-ctl);
+  background: var(--critical-soft); color: var(--critical); font-size: 13.5px; line-height: 1.35; white-space: normal; }
+.hk-cash .icon { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.hk-door { display: flex; flex-direction: column; margin-top: 6px; font-size: 11.5px; line-height: 1.4; color: var(--text-3);
+  opacity: 0.8; font-variant-numeric: tabular-nums; }
+.hk-door > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hk-door.is-loading { opacity: 0.5; }
 .hk-inter { display: flex; flex-direction: column; gap: 12px; }
 
 .assign-bar {

@@ -138,6 +138,99 @@ final class Nuki
         return $out;
     }
 
+    /** Log actions worth showing (lock / unlock / door sensor). System noise (calibration, firmware…) is skipped. */
+    private const LOG_ACTIONS = [
+        1 => 'Descuiat', 2 => 'Încuiat', 3 => 'Deschis (unlatch)', 4 => "Încuiat (Lock 'n' Go)",
+        5 => "Lock 'n' Go cu deschidere", 240 => 'Ușă deschisă', 241 => 'Ușă închisă',
+    ];
+    private const LOG_TRIGGERS = [
+        0 => '', 1 => 'manual', 2 => 'buton', 3 => 'automat', 4 => 'web',
+        5 => 'aplicație', 6 => 'auto-lock', 7 => 'accesoriu', 255 => 'tastatură',
+    ];
+    private const LOG_CACHE_TTL = 60;
+
+    /**
+     * Last $count meaningful lock events per apartment, newest first — one parallel round to Nuki,
+     * cached 60 s in storage/cache (holds names: never under public/). Apartments without a lock are skipped.
+     * @param list<string> $apartments
+     * @return array<string, list<array{action:string, via:string, name:string, at:string, ok:bool}>>
+     */
+    public static function recentEvents(array $apartments, int $count = 2): array
+    {
+        $locks = self::smartlocks();
+        $wanted = [];
+        foreach ($apartments as $apartment) {
+            $apartment = self::cleanApartment((string) $apartment);
+            if (isset($locks[$apartment]) && preg_match('/^\d{5,20}$/', $locks[$apartment])) {
+                $wanted[$apartment] = $locks[$apartment];
+            }
+        }
+        if (!$wanted) {
+            return [];
+        }
+
+        $dir = ONE_ROOT . '/storage/cache';
+        $file = $dir . '/nuki-log-' . date('Y-m-d') . '.json';
+        $cache = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
+        $out = [];
+        $missing = [];
+        foreach ($wanted as $apartment => $lockId) {
+            $hit = $cache[$apartment] ?? null;
+            if (is_array($hit) && time() - (int) ($hit['t'] ?? 0) < self::LOG_CACHE_TTL) {
+                $out[$apartment] = $hit['events'];
+            } else {
+                $missing[$apartment] = $lockId;
+            }
+        }
+        if (!$missing) {
+            return $out;
+        }
+
+        // limit=15: the latest raw entries can be system noise; we keep the first $count meaningful ones.
+        $paths = [];
+        foreach ($missing as $apartment => $lockId) {
+            $paths[$apartment] = "/smartlock/$lockId/log?limit=15";
+        }
+        $tz = new \DateTimeZone(date_default_timezone_get());
+        foreach (self::requestMany($paths, 10) as $apartment => $res) {
+            if ($res['error'] !== '' || $res['status'] !== 200) {
+                self::log(sprintf('log apt=%s http=%d %s', $apartment, $res['status'], $res['error'] ?: 'FAIL'));
+                continue; // no line on the card rather than a wrong one
+            }
+            $entries = array_filter((array) json_decode($res['body'], true), 'is_array');
+            usort($entries, static fn(array $a, array $b): int => strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? '')));
+            $events = [];
+            foreach ($entries as $entry) {
+                $action = (int) ($entry['action'] ?? 0);
+                if (!isset(self::LOG_ACTIONS[$action]) || empty($entry['date'])) {
+                    continue;
+                }
+                try {
+                    $at = (new \DateTimeImmutable((string) $entry['date']))->setTimezone($tz)->format(DATE_ATOM);
+                } catch (\Exception) {
+                    continue;
+                }
+                $events[] = [
+                    'action' => self::LOG_ACTIONS[$action],
+                    'via'    => self::LOG_TRIGGERS[(int) ($entry['trigger'] ?? -1)] ?? '',
+                    'name'   => mb_substr(trim((string) ($entry['name'] ?? '')), 0, 40),
+                    'at'     => $at,
+                    'ok'     => (int) ($entry['state'] ?? 0) === 0,
+                ];
+                if (count($events) >= $count) {
+                    break;
+                }
+            }
+            $out[$apartment] = $events;
+            $cache[$apartment] = ['t' => time(), 'events' => $events];
+        }
+
+        if (is_dir($dir) || @mkdir($dir, 0750, true)) {
+            @file_put_contents($file, json_encode($cache, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        }
+        return $out;
+    }
+
     /** Above this many keypad codes the lock is flagged (Nuki Keypad holds at most 100 / 200 codes). */
     private const KEYPAD_CODE_WARN = 90;
 
@@ -186,6 +279,51 @@ final class Nuki
         $error = curl_error($ch);
         curl_close($ch);
         return ['status' => $status, 'body' => is_string($response) ? $response : '', 'error' => $error];
+    }
+
+    /**
+     * Parallel GETs (curl_multi) — one Nuki round-trip for every card instead of one per lock.
+     * @param array<string,string> $paths key => path
+     * @return array<string, array{status:int, body:string, error:string}>
+     */
+    private static function requestMany(array $paths, int $timeout = 10): array
+    {
+        $config = self::config();
+        $base = rtrim((string) ($config['api_base'] ?? 'https://api.nuki.io'), '/');
+        $multi = curl_multi_init();
+        $handles = [];
+        foreach ($paths as $key => $path) {
+            $ch = curl_init($base . $path);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CONNECTTIMEOUT => 6,
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_HTTPHEADER     => ['Accept: application/json', 'Authorization: Bearer ' . $config['api_token']],
+            ]);
+            curl_multi_add_handle($multi, $ch);
+            $handles[$key] = $ch;
+        }
+        do {
+            $status = curl_multi_exec($multi, $running);
+            if ($running) {
+                curl_multi_select($multi, 1.0);
+            }
+        } while ($running && $status === CURLM_OK);
+
+        $out = [];
+        foreach ($handles as $key => $ch) {
+            $body = curl_multi_getcontent($ch);
+            $out[$key] = [
+                'status' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE),
+                'body'   => is_string($body) ? $body : '',
+                'error'  => curl_error($ch),
+            ];
+            curl_multi_remove_handle($multi, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($multi);
+        return $out;
     }
 
     /** "Ap. 295", " 295 " → "295" (defensive, as in the legacy endpoint). */

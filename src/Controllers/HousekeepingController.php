@@ -11,6 +11,8 @@ use One\Housekeeping\ChecklistMailer;
 use One\Housekeeping\CleaningRepository;
 use One\Housekeeping\HousekeepingFeed;
 use One\Http\Guard;
+use One\Integrations\GuestAppCheckins;
+use One\Integrations\Nuki;
 use RuntimeException;
 
 /**
@@ -120,9 +122,13 @@ final class HousekeepingController
             }
         }
         $counts = CleaningRepository::submissionCounts(array_column($rows, 'apartment'), $today);
+        self::rememberCheckouts($today, array_column($rows, 'apartment'));
         foreach ($rows as &$row) {
             $row['assigned'] = array_values(array_unique(array_column($assignments[$row['apartment']] ?? [], 'maid')));
             $row['submissions'] = $counts[$row['apartment']] ?? 0;
+            // Departing guest paid the city tax in cash → money left on the kitchen table, to pick up.
+            $row['cashDue'] = $row['reservationId'] !== '' ? GuestAppCheckins::cashToCollect($row['reservationId']) : null;
+            $row['hasLock'] = Nuki::hasLock($row['apartment']);
             if ($isMaid) {
                 // A maid only needs the apartment and the time — never the guest.
                 unset($row['guest'], $row['reservationId']);
@@ -130,6 +136,42 @@ final class HousekeepingController
         }
         unset($row);
         json_response(['ok' => true, 'date' => $today, 'checkouts' => $rows]);
+    }
+
+    /**
+     * GET /api/housekeeping/door-log — last 2 lock events per check-out apartment (did the guest leave?).
+     * Loaded after the list so a slow Nuki never delays the cards. Only today's check-out apartments
+     * (+ a maid's own assignments); maids never get the name behind a keypad code.
+     */
+    public static function doorLog(): never
+    {
+        $user = Guard::requireAccess('housekeeping', 'view');
+        $today = date('Y-m-d');
+        if (!Nuki::isConfigured()) {
+            json_response(['ok' => true, 'logs' => (object) []]);
+        }
+        $allowed = self::rememberedCheckouts($today);
+        if (self::isMaid($user)) {
+            $allowed = array_merge($allowed, CleaningRepository::apartmentsOf(self::maidName($user), $today));
+        }
+        $requested = self::apartmentList(explode(',', (string) ($_GET['apartments'] ?? '')));
+        $apartments = array_slice(array_values(array_intersect($requested, $allowed)), 0, 30);
+
+        try {
+            $logs = Nuki::recentEvents($apartments, 2);
+        } catch (RuntimeException $e) {
+            json_response(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
+        if (self::isMaid($user)) {
+            foreach ($logs as &$events) {
+                foreach ($events as &$event) {
+                    $event['name'] = '';
+                }
+                unset($event);
+            }
+            unset($events);
+        }
+        json_response(['ok' => true, 'logs' => (object) $logs]);
     }
 
     /** POST /api/housekeeping/assign {maid: key, apartments: [..]} */
@@ -326,6 +368,34 @@ final class HousekeepingController
                 json_response(['ok' => false, 'error' => "Apartamentul $apartment e deja alocat către " . implode(', ', $others) . '.'], 409);
             }
         }
+    }
+
+    /** Today's check-out apartments (numbers only), kept so /door-log can be scoped without asking Previo again. */
+    private static function rememberCheckouts(string $date, array $apartments): void
+    {
+        $dir = ONE_ROOT . '/storage/cache';
+        if (is_dir($dir) || @mkdir($dir, 0750, true)) {
+            @file_put_contents("$dir/hk-checkouts-$date.json", json_encode(array_values($apartments)), LOCK_EX);
+        }
+    }
+
+    /** @return list<string> */
+    private static function rememberedCheckouts(string $date): array
+    {
+        $file = ONE_ROOT . "/storage/cache/hk-checkouts-$date.json";
+        if (is_file($file)) {
+            $list = json_decode((string) file_get_contents($file), true);
+            if (is_array($list)) {
+                return array_map('strval', $list);
+            }
+        }
+        try {
+            $list = array_column(HousekeepingFeed::checkouts($date), 'apartment');
+        } catch (RuntimeException) {
+            return [];
+        }
+        self::rememberCheckouts($date, $list);
+        return $list;
     }
 
     private static function maidFromKey(string $key): string
