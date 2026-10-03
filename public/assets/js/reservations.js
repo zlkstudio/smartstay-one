@@ -40,19 +40,13 @@
     return `<div class="card empty"><span class="tile-icon">${icon('reservations', 'icon-lg')}</span>` +
       `<h2>${esc(title)}</h2><p>${esc(text)}</p></div>`;
   }
-  function copy(text, label, onCopied) {
-    const done = () => { toast(label || 'Copiat'); if (onCopied) onCopied(); };
+  function copy(text, label) {
+    const done = () => toast(label || 'Copiat');
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(done, () => window.prompt('Copiază:', text));
     } else {
       window.prompt('Copiază:', text);
     }
-  }
-  const M = window.MOTION;
-  function toElement(html) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = html.trim();
-    return tpl.content.firstElementChild;
   }
   // Phones (and the installed PWA) open the WhatsApp app directly through whatsapp://.
   // An https link opened from the PWA lands in iOS's in-app browser sheet, which stays
@@ -90,79 +84,27 @@
     });
   }
 
-  // Refresh: header button, pull-to-refresh, and coming back to the app after more than a minute.
-  // The icon turns once on spring.settle (no looping spinner); pull progress drives its rotation.
+  // Refresh: header button + coming back to the app after more than a minute.
   let loader = null;
   let lastLoad = 0;
   const refreshBtn = root.querySelector('[data-refresh]');
-  const refreshIcon = refreshBtn && refreshBtn.querySelector('.icon');
-  function turnIcon() {
-    if (!refreshIcon || !M) return;
-    const now = M.valueOf(refreshIcon, 'rotate');
-    M.animate(refreshIcon, { rotate: (Math.floor(now / 360) + 1) * 360 }, { spring: 'settle' });
-  }
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      turnIcon();
-      loader && loader({ replay: true });
+      refreshBtn.classList.add('is-spinning');
+      setTimeout(() => refreshBtn.classList.remove('is-spinning'), 700);
+      loader && loader();
     });
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && loader && Date.now() - lastLoad > 60000) loader({ quiet: true });
+    if (document.visibilityState === 'visible' && loader && Date.now() - lastLoad > 60000) loader();
   });
-
-  function initPullToRefresh(list) {
-    if (!refreshBtn || !M || !('ontouchstart' in window)) return;
-    const MAX = 84, TRIGGER = 64, HOLD = 48;
-    let y0 = null, pull = 0, dragging = false, busy = false;
-    document.documentElement.classList.add('ptr');
-
-    window.addEventListener('touchstart', (e) => {
-      y0 = busy || window.scrollY > 0 || e.touches.length > 1 ? null : e.touches[0].clientY;
-      pull = 0;
-      dragging = false;
-    }, { passive: true });
-
-    window.addEventListener('touchmove', (e) => {
-      if (y0 === null) return;
-      const dy = e.touches[0].clientY - y0;
-      if (window.scrollY > 0 || (dy <= 0 && !dragging)) { y0 = null; return; }
-      dragging = true;
-      pull = Math.min(MAX, Math.max(0, dy) * 0.45);
-      if (M.reduced()) return;
-      M.set(list, { y: pull });
-      if (refreshIcon) M.set(refreshIcon, { rotate: (pull / TRIGGER) * 300 });
-    }, { passive: true });
-
-    const release = () => {
-      if (!dragging) { y0 = null; return; }
-      dragging = false;
-      y0 = null;
-      if (pull < TRIGGER) {
-        M.animate(list, { y: 0 }, { spring: 'settle' }).then(() => M.reset(list));
-        if (refreshIcon) M.animate(refreshIcon, { rotate: 0 }, { spring: 'settle' });
-        return;
-      }
-      busy = true;
-      M.haptic();
-      M.animate(list, { y: HOLD }, { spring: 'settle' });
-      turnIcon();
-      Promise.resolve(loader && loader({ replay: true, pulled: true })).finally(() => {
-        busy = false;
-        M.animate(list, { y: 0 }, { spring: 'settle' }).then(() => M.reset(list));
-      });
-    };
-    window.addEventListener('touchend', release, { passive: true });
-    window.addEventListener('touchcancel', release, { passive: true });
-  }
 
   // ════════════════════════════════════════════════════════════════════════
   // Astăzi / Mâine
   // ════════════════════════════════════════════════════════════════════════
   function initDay() {
-    const state = { rows: [], statuses: {}, filter: 'all', search: '', loaded: false };
+    const state = { rows: [], statuses: {}, filter: 'all', search: '' };
     const $chips = $('[data-chips]');
-    let pill = null;
 
     const FILTERS = [
       ['all', 'Toate'],
@@ -171,7 +113,6 @@
       ['complete', 'Complete'],
       ['with-parking', 'Cu parcare'],
     ];
-    const CHECK = '<svg class="icon status-check" aria-hidden="true"><use href="#i-check"/></svg>';
 
     function st(id) { return state.statuses[id] || {}; }
 
@@ -206,23 +147,13 @@
       return 'is-attention';
     }
 
-    function hintHtml(on, hintOn, hintOff) {
-      return (on ? CHECK : '') + `<span>${on ? hintOn : hintOff}</span>`;
-    }
-
     function toggle(field, on, label, hintOn, hintOff, ic) {
       return `<button type="button" class="toggle-card${on ? ' is-on' : ''}" data-action="toggle" data-field="${field}"
-        data-hint-on="${hintOn}" data-hint-off="${hintOff}" aria-pressed="${on}" ${CAN_EDIT ? '' : 'disabled'}>
+        aria-pressed="${on}" ${CAN_EDIT ? '' : 'disabled'}>
         <span class="toggle-card__icon">${icon(ic)}</span>
         <span class="toggle-card__text"><span class="toggle-card__label">${label}</span>
-        <span class="toggle-card__hint">${hintHtml(on, hintOn, hintOff)}</span></span>
+        <span class="toggle-card__hint">${on ? hintOn : hintOff}</span></span>
         <span class="switch" aria-hidden="true"></span></button>`;
-    }
-
-    function phoneButton(r) {
-      return r.phone
-        ? `<button type="button" class="res-card__phone" data-action="copy-phone">${icon('phone')}<span data-phone-text>${esc(r.phone)}</span></button>`
-        : '';
     }
 
     // Menajeră: nume, telefon, apartament, check-in/out (dată + oră), >2 oaspeți, nota de housekeeping.
@@ -231,7 +162,7 @@
         <div class="res-card__head">
           <div class="grow">
             <h3 class="res-card__name">${esc(r.name)}</h3>
-            ${phoneButton(r)}
+            ${r.phone ? `<button type="button" class="res-card__phone" data-action="copy-phone">${icon('phone')}<span>${esc(r.phone)}</span></button>` : ''}
           </div>
           <div class="apt-badge"><span>Apt</span><strong>${esc(r.apartment || '—')}</strong></div>
         </div>
@@ -239,7 +170,7 @@
           <div><span class="eyebrow">Check-in</span><strong>${esc(r.checkInLabel)}</strong><span class="muted">la ${esc(r.checkInTime)}</span></div>
           <div><span class="eyebrow">Check-out</span><strong>${esc(r.checkOutLabel)}</strong><span class="muted">la ${esc(r.checkOutTime)}</span></div>
         </div>
-        ${r.guestCount > 2 ? `<div class="strip strip-warning" data-alert>${icon('alert')}<span>Atenție: sunt <strong>${r.guestCount}</strong> oaspeți</span></div>` : ''}
+        ${r.guestCount > 2 ? `<div class="strip strip-warning">${icon('alert')}<span>Atenție: sunt <strong>${r.guestCount}</strong> oaspeți</span></div>` : ''}
         ${r.note ? `<div class="strip strip-neutral">${icon('note')}<span class="pre">${esc(r.note)}</span></div>` : ''}
       </article>`;
     }
@@ -252,7 +183,7 @@
         <div class="res-card__head">
           <div class="grow">
             <h3 class="res-card__name">${esc(r.name)}</h3>
-            ${phoneButton(r)}
+            ${r.phone ? `<button type="button" class="res-card__phone" data-action="copy-phone">${icon('phone')}<span>${esc(r.phone)}</span></button>` : ''}
           </div>
           <div class="apt-badge"><span>Apt</span><strong>${esc(r.apartment || '—')}</strong></div>
         </div>
@@ -260,8 +191,8 @@
           <div><span class="eyebrow">Check-in</span><strong>${esc(r.checkInLabel)}</strong><span class="muted">la ${esc(r.checkInTime)}</span></div>
           <div><span class="eyebrow">Check-out</span><strong>${esc(r.checkOutLabel)}</strong><span class="muted">la ${esc(r.checkOutTime)}</span></div>
         </div>
-        ${r.parkingSpot ? `<div class="strip strip-blue" data-alert>${icon('parking')}<span>Parcare inclusă · <strong>${esc(r.parkingSpot)}</strong></span></div>` : ''}
-        ${r.guestCount > 2 ? `<div class="strip strip-warning" data-alert>${icon('alert')}<span>Atenție: sunt <strong>${r.guestCount}</strong> oaspeți</span></div>` : ''}
+        ${r.parkingSpot ? `<div class="strip strip-blue">${icon('parking')}<span>Parcare inclusă · <strong>${esc(r.parkingSpot)}</strong></span></div>` : ''}
+        ${r.guestCount > 2 ? `<div class="strip strip-warning">${icon('alert')}<span>Atenție: sunt <strong>${r.guestCount}</strong> oaspeți</span></div>` : ''}
         ${r.note ? `<div class="strip strip-neutral">${icon('note')}<span class="pre">${esc(r.note)}</span></div>` : ''}
         <div class="toggle-row">
           ${toggle('city_tax_paid', !!s.city_tax_paid, 'Taxă oraș', 'Plătită', 'Neplătită', 'receipt')}
@@ -271,180 +202,43 @@
           <button type="button" class="act act-whatsapp" data-action="welcome" ${r.waPhone ? '' : 'disabled'}>${icon('whatsapp')}WhatsApp</button>
           <button type="button" class="act act-guest" data-action="guest-link">${icon('link')}Guest App</button>
           <button type="button" class="act act-nuki" data-action="nuki" ${CAN_EDIT && r.hasNuki && r.nukiCode ? '' : 'disabled'}
-            ${r.hasNuki ? '' : 'title="Apartamentul nu are yală Nuki configurată"'}>${icon('nuki')}<span class="act-label">${nukiLabel}</span></button>
+            ${r.hasNuki ? '' : 'title="Apartamentul nu are yală Nuki configurată"'}>${icon('nuki')}${nukiLabel}</button>
         </div>
       </article>`;
     }
 
-    // ── Status morph: colour interpolates, hint width follows the label, check draws, one pop ──
-    function morphToggle(btn, on, animate) {
-      const hint = btn.querySelector('.toggle-card__hint');
-      const w0 = hint.getBoundingClientRect().width;
-      btn.classList.toggle('is-on', on);
-      btn.setAttribute('aria-pressed', String(on));
-      hint.innerHTML = hintHtml(on, btn.dataset.hintOn, btn.dataset.hintOff);
-      if (!animate || !M || M.reduced()) return;
-      const w1 = hint.getBoundingClientRect().width;
-      if (Math.abs(w1 - w0) > 0.5) {
-        M.animate(hint, { width: [w0, w1] }, { spring: 'settle' }).then(() => { hint.style.width = ''; });
-      }
-      if (on) {
-        const check = hint.querySelector('.status-check');
-        if (check) check.classList.add('is-drawing');
-        clearTimeout(btn.__pop);
-        btn.__pop = setTimeout(() => M.impulse(btn, 'scale', 1.04, 'pop').then(() => M.reset(btn)), 280);
-      }
-    }
-
-    function applyStatus(el, s, animate) {
-      if (COMPACT) return;
-      const cls = cardClass(s);
-      if (!el.classList.contains(cls)) {
-        el.classList.remove('is-complete', 'is-pending', 'is-attention');
-        el.classList.add(cls);
-      }
-      el.querySelectorAll('[data-action="toggle"]').forEach((btn) => {
-        const on = !!s[btn.dataset.field];
-        if (btn.classList.contains('is-on') !== on) morphToggle(btn, on, animate);
-      });
-    }
-
-    // ── Chips: rendered once; counts update in place; one pill slides between them ──
     function renderChips() {
       if (!$chips) return;
       const c = counts();
-      if (!$chips.querySelector('[data-filter]')) {
-        $chips.innerHTML = FILTERS.map(([key, label]) =>
-          `<button type="button" class="chip" data-filter="${key}">${label} <span class="count">0</span></button>`).join('');
-        if (M) pill = M.chipPill($chips);
-      }
-      $chips.querySelectorAll('[data-filter]').forEach((chip) => {
-        chip.classList.toggle('is-active', chip.dataset.filter === state.filter);
-        chip.querySelector('.count').textContent = c[chip.dataset.filter] || 0;
-      });
-      if (pill) pill.sync();
+      $chips.innerHTML = FILTERS.map(([key, label]) =>
+        `<button type="button" class="chip${state.filter === key ? ' is-active' : ''}" data-filter="${key}">${label} <span class="count">${c[key] || 0}</span></button>`).join('');
     }
 
-    // ── Keyed reconcile ────────────────────────────────────────────────
-    // mode 'enter'  — first paint / refresh: staggered rise + scale from the top.
-    // mode 'update' — filter, search, status, quiet refresh: FLIP for cards that stay,
-    //                 exit up for cards that leave, short rise for cards that arrive.
-    function signature(r) { return JSON.stringify(r); }
-
-    function render(mode) {
-      mode = mode || 'update';
+    function render() {
       const shown = state.rows.filter(matches);
+      $list.innerHTML = shown.length
+        ? shown.map(card).join('')
+        : empty('Nimic de afișat', state.rows.length
+          ? 'Nu sunt rezervări care să corespundă filtrelor.'
+          : (TAB === 'tomorrow' ? 'Nu sunt check-in-uri programate pentru mâine.' : 'Nu sunt check-in-uri programate azi.'));
       renderChips();
       const total = state.rows.length;
       $count.textContent = shown.length === total ? String(total) : `${shown.length}/${total}`;
-
-      const live = Array.from($list.children).filter((el) => !el.classList.contains('is-leaving'));
-      const byId = new Map();
-      const first = new Map();
-      live.forEach((el) => {
-        if (el.dataset.id) byId.set(el.dataset.id, el);
-        if (mode === 'update') first.set(el, { top: el.getBoundingClientRect().top, offset: el.offsetTop });
-      });
-
-      const next = [];
-      const entering = [];
-      shown.forEach((r) => {
-        const sig = signature(r);
-        let el = byId.get(r.id);
-        if (el && el.dataset.sig === sig) {
-          byId.delete(r.id);
-          applyStatus(el, st(r.id), mode === 'update');
-        } else {
-          el = toElement(card(r));
-          el.dataset.sig = sig;
-          entering.push(el);
-        }
-        next.push(el);
-      });
-      if (!shown.length) {
-        const el = toElement(empty('Nimic de afișat', state.rows.length
-          ? 'Nu sunt rezervări care să corespundă filtrelor.'
-          : (TAB === 'tomorrow' ? 'Nu sunt check-in-uri programate pentru mâine.' : 'Nu sunt check-in-uri programate azi.')));
-        next.push(el);
-        entering.push(el);
-      }
-
-      const leaving = live.filter((el) => !next.includes(el));
-      next.forEach((el) => $list.appendChild(el));
-
-      const animated = M && mode !== 'instant';
-      // Hand the card back to CSS (press :active) once nothing newer is animating it.
-      const release = (el) => () => { if (!el.__motion || !el.__motion.anim) M.reset(el); };
-      leaving.forEach((el) => {
-        const f = first.get(el);
-        if (!animated || !f) { el.remove(); return; }
-        el.classList.add('is-leaving');
-        el.style.top = f.offset + 'px';
-        const y = M.valueOf(el, 'y');
-        M.animate(el, { y: y - M.tokens.distance.filter, opacity: 0 },
-          { timing: { curve: M.tokens.ease.exit.curve, duration: 140 } }).then(() => el.remove());
-      });
-      if (!animated) return;
-
-      // Cards that stay: animate from where they were to where they are now.
-      next.forEach((el) => {
-        const f = first.get(el);
-        if (!f) return;
-        const dy = f.top - el.getBoundingClientRect().top;
-        if (Math.abs(dy) < 0.5) return;
-        M.animate(el, { y: [M.valueOf(el, 'y') + dy, 0] }, { spring: 'settle', keepVelocity: true }).then(release(el));
-      });
-
-      const viewport = window.innerHeight;
-      const T = M.tokens;
-      let i = 0;
-      entering.forEach((el) => {
-        if (el.getBoundingClientRect().top > viewport) return; // below the fold: no animation to watch
-        const delay = mode === 'enter'
-          ? Math.min(i * T.stagger.card, T.stagger.cardMax)
-          : i * T.stagger.filter;
-        i++;
-        const props = mode === 'enter'
-          ? { y: [T.distance.card, 0], scale: [0.985, 1], opacity: [0, 1] }
-          : { y: [T.distance.filter, 0], opacity: [0, 1] };
-        const opts = mode === 'enter'
-          ? { timing: T.ease.enter, delay }
-          : { spring: 'settle', per: { opacity: { curve: T.ease.enter.curve, duration: 180 } }, delay };
-        M.animate(el, props, opts).then(release(el));
-        el.querySelectorAll('[data-alert]').forEach((strip) => {
-          strip.style.animationDelay = (delay + 60) + 'ms';
-          strip.classList.add('is-mounting');
-          strip.addEventListener('animationend', () => {
-            strip.classList.remove('is-mounting');
-            strip.style.animationDelay = '';
-          }, { once: true });
-        });
-      });
     }
 
-    function load(opts) {
-      opts = opts || {};
+    function load() {
       lastLoad = Date.now();
       showError('');
-      if (!state.loaded && !opts.pulled) {
-        $list.innerHTML = skeletons(3);
-      }
+      $list.innerHTML = skeletons(3);
       return window.ONE.api('/api/reservations/list?day=' + (TAB === 'tomorrow' ? 'tomorrow' : 'today'))
         .then((data) => {
           state.rows = data.reservations || [];
           state.statuses = data.statuses || {};
-          const replay = !state.loaded || opts.replay;
-          state.loaded = true;
-          if (replay) {
-            Array.from($list.children).forEach((el) => el.remove());
-          }
-          render(replay ? 'enter' : 'update');
+          render();
         })
         .catch((e) => {
-          if (!state.loaded) {
-            $list.innerHTML = '';
-            $count.textContent = '—';
-          }
+          $list.innerHTML = '';
+          $count.textContent = '—';
           showError('Nu s-au putut încărca rezervările: ' + e.message);
         });
     }
@@ -456,7 +250,6 @@
       const field = btn.dataset.field;
       const before = !!st(id)[field];
       const after = !before;
-      if (M) M.haptic();
       state.statuses[id] = Object.assign({}, st(id), { [field]: after });
       render();
       window.ONE.api('/api/reservations/status', { method: 'POST', body: { id, field, value: after } })
@@ -483,15 +276,8 @@
       btn.innerHTML = '<span class="spinner"></span>Se trimite…';
       window.ONE.api('/api/reservations/nuki', { method: 'POST', body: { id: r.id }, timeout: 40000 })
         .then((res) => {
-          // Digits roll out, the sent state rolls in (120 ms); the sent state stays — it is information.
-          btn.innerHTML = icon('check') + `<span class="act-label">Nuki · ${esc(r.nukiCode)}</span>`;
+          btn.innerHTML = icon('check') + 'Trimis · ' + esc(res.code);
           btn.classList.add('is-sent');
-          if (M) {
-            M.swapText(btn.querySelector('.act-label'), 'Trimis · ' + res.code);
-            M.haptic();
-          } else {
-            btn.querySelector('.act-label').textContent = 'Trimis · ' + res.code;
-          }
           toast(`${res.message} pentru ${r.name}`);
           setTimeout(() => { btn.disabled = false; }, 3000);
         })
@@ -505,9 +291,7 @@
     $list.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-action]');
       if (!btn) return;
-      const host = btn.closest('[data-id]');
-      if (!host || host.classList.contains('is-leaving')) return;
-      const id = host.dataset.id;
+      const id = btn.closest('[data-id]').dataset.id;
       const r = find(id);
       if (!r) return;
       switch (btn.dataset.action) {
@@ -515,13 +299,7 @@
           if (CAN_EDIT) onToggle(btn, id);
           break;
         case 'copy-phone':
-          copy(r.phone, 'Telefon copiat', () => {
-            const label = btn.querySelector('[data-phone-text]');
-            if (M && label) {
-              M.swapText(label, 'Copiat', { original: r.phone, revertAfter: 900 });
-              M.haptic();
-            }
-          });
+          copy(r.phone, 'Telefon copiat');
           break;
         case 'welcome': {
           const ro = r.isRo;
@@ -544,7 +322,7 @@
 
     $chips && $chips.addEventListener('click', (event) => {
       const chip = event.target.closest('[data-filter]');
-      if (!chip || chip.dataset.filter === state.filter) return;
+      if (!chip) return;
       state.filter = chip.dataset.filter;
       render();
     });
@@ -555,7 +333,6 @@
       timer = setTimeout(() => { state.search = $search.value; render(); }, 180);
     });
 
-    initPullToRefresh($list);
     load();
   }
 
@@ -640,7 +417,6 @@
         const el = root.querySelector(`[data-window-count="${w}"]`);
         if (el) el.textContent = state.loaded ? state.windows[w].length : '—';
       });
-      if (windowPill) windowPill.sync();
       if (!state.loaded) { $list.innerHTML = skeletons(3); return; }
       const q = state.search.trim().toLowerCase();
       const rows = state.windows[state.active].filter((r) =>
@@ -673,7 +449,6 @@
         });
     }
     loader = load;
-    initPullToRefresh($list);
 
     $list.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-action]');
@@ -696,13 +471,11 @@
       }
     });
 
-    const windowPill = M ? M.chipPill($windows) : null;
     $windows.addEventListener('click', (event) => {
       const chip = event.target.closest('[data-window]');
       if (!chip) return;
       state.active = chip.dataset.window;
       $windows.querySelectorAll('[data-window]').forEach((c) => c.classList.toggle('is-active', c === chip));
-      if (windowPill) windowPill.sync();
       render();
     });
 

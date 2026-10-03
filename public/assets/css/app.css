@@ -153,10 +153,12 @@ p { margin: 0; }
 }
 .nav-item .icon { width: 24px; height: 24px; }
 .nav-item.is-active { color: var(--blue); }
-/* The active background is one shared .nav-indicator (motion.css), not one per item. */
-.nav-pill { display: grid; place-items: center; width: 52px; height: 30px; border-radius: var(--r-pill); }
+.nav-item.is-active .nav-pill { background: var(--blue-soft); }
+.nav-pill { display: grid; place-items: center; width: 52px; height: 30px; border-radius: var(--r-pill); transition: background 0.2s; }
 .nav-item[data-module="housekeeping"].is-active { color: var(--violet); }
+.nav-item[data-module="housekeeping"].is-active .nav-pill { background: var(--violet-soft); }
 .nav-item[data-module="inventory"].is-active { color: var(--indigo); }
+.nav-item[data-module="inventory"].is-active .nav-pill { background: var(--indigo-soft); }
 
 @media (max-width: 899px) { .desktop-only { display: none !important; } }
 

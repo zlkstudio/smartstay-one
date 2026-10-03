@@ -173,6 +173,7 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 
 /* ── Etapa 3: shared accents ─────────────────────────────────────────── */
 .nav-item[data-module="reports"].is-active { color: var(--teal); }
+.nav-item[data-module="reports"].is-active .nav-pill { background: var(--teal-soft); }
 .chips-indigo .chip.is-active { background: var(--indigo); border-color: var(--indigo); }
 .chips-teal .chip.is-active { background: var(--teal); border-color: var(--teal); color: #fff; }
 .tabs-teal .tab.is-active { color: var(--teal); }
