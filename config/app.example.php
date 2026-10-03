@@ -38,6 +38,11 @@ return [
     // „numerar pe masă" din Curățenie. Implicit: ~/shared/guest-app/data/checkin (ținta symlink-ului).
     // 'guest_app_checkin_dir' => '/home/smartconcept/shared/guest-app/data/checkin',
 
+    // Notificări push către admini (cheile: php bin/push-keys.php → config/push.php).
+    // Implicit: checklist trimis + orice modificare în Inventar. 'actions' adaugă altele din audit_log,
+    // ex. 'reservation.status', 'housekeeping.assign'. notify_self: true = și pentru propriile acțiuni.
+    'push' => ['actions' => [], 'notify_self' => false],
+
     // Housekeeping checklist e-mail (same addresses as housekeeping/config/app_config.php).
     'housekeeping' => [
         'report_to' => 'cleaning@smartconceptliving.ro',

@@ -482,3 +482,16 @@ button.apt-row:active { background: var(--surface-2); }
 }
 
 .btn-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+
+/* Jurnal activitate + notificări push (admin) */
+.push-help { font-size: 13.5px; margin: 0; }
+.push-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.push-actions:empty { display: none; }
+.activity-item { align-items: flex-start; }
+.activity-body { display: block; font-size: 14px; color: var(--text-2); white-space: normal; overflow-wrap: anywhere; }
+.activity-time { font-size: 13px; padding-top: 2px; }
+.activity-dot { flex: none; width: 8px; height: 8px; margin-top: 8px; border-radius: 50%; background: var(--text-3); }
+.activity-dot[data-kind="housekeeping"] { background: var(--violet); }
+.activity-dot[data-kind="inventory"] { background: var(--indigo); }
+.activity-dot[data-kind="reservation"] { background: var(--blue); }
+.activity-dot[data-kind="report"] { background: var(--teal); }

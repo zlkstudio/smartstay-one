@@ -35,6 +35,7 @@ PROTECTED_CONFIGS=(
   config/previo.php
   config/nuki.php
   config/checkin-sync.php
+  config/push.php
 )
 # Required before the first deploy. The rest are optional until their stage.
 REQUIRED_CONFIGS=(config/app.php config/database-one.php)

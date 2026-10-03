@@ -8,6 +8,7 @@ use One\Auth\Auth;
 use One\Controllers\AuthController;
 use One\Controllers\HousekeepingController;
 use One\Controllers\InventoryController;
+use One\Controllers\NotificationsController;
 use One\Controllers\PageController;
 use One\Controllers\ReportsController;
 use One\Controllers\ReservationsController;
@@ -123,6 +124,10 @@ $router->post('/users/{id}/reset', static fn(array $p) => UsersController::reset
 $router->post('/users/{id}/toggle', static fn(array $p) => UsersController::toggleActive($p));
 
 $router->get('/settings', static fn() => PageController::settings());
+$router->get('/activity', static fn() => NotificationsController::activity());
+$router->post('/api/push/subscribe', static fn() => NotificationsController::subscribe());
+$router->post('/api/push/unsubscribe', static fn() => NotificationsController::unsubscribe());
+$router->post('/api/push/test', static fn() => NotificationsController::test());
 
 // JSON API — every module endpoint opens with Guard::requireAccess().
 $router->get('/api/me', static function (): never {

@@ -119,7 +119,9 @@ final class InventoryController
         if (!InventoryRepository::setNote($apartment, $note)) {
             json_response(['ok' => false, 'error' => "Apartamentul $apartment nu există în inventar."], 404);
         }
-        Audit::log((int) $user['id'], 'inventory.note', 'inventory', $apartment, ['length' => mb_strlen(trim($note))]);
+        Audit::log((int) $user['id'], 'inventory.note', 'inventory', $apartment, [
+            'length' => mb_strlen(trim($note)), 'text' => mb_substr(trim($note), 0, 160),
+        ]);
         json_response(['ok' => true]);
     }
 
@@ -185,7 +187,9 @@ final class InventoryController
             json_response(['ok' => false, 'error' => "Apartamentul $apartment nu există în inventar."], 404);
         }
         Audit::log((int) $user['id'], 'inventory.tech', 'inventory', $apartment, array_filter([
-            'tvApp' => $tvApp, 'length' => $tech === null ? null : mb_strlen(trim($tech)),
+            'tvApp'  => $tvApp,
+            'length' => $tech === null ? null : mb_strlen(trim($tech)),
+            'text'   => $tech === null ? null : mb_substr(trim($tech), 0, 160),
         ], static fn($v): bool => $v !== null));
         json_response(['ok' => true]);
     }

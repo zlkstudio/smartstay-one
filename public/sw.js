@@ -1,7 +1,8 @@
 /* SmartStay ONE — service worker.
    Shell assets: cache-first (URLs carry ?v=filemtime, so a new file = a new URL).
    Pages and /api/: always network — authenticated HTML and live data are never cached.
-   Offline navigation → /offline.html. */
+   Offline navigation → /offline.html.
+   Push: admin notifications (checklist, inventar) → shown here; a tap opens the related page. */
 'use strict';
 
 const CACHE = 'one-shell-v3';
@@ -62,3 +63,30 @@ async function cacheFirst(request, url) {
   }
   return response;
 }
+
+// ── Push notifications ──────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(self.registration.showNotification(data.title || 'SmartStay ONE', {
+    body: data.body || '',
+    tag: data.tag || undefined,
+    renotify: !!data.tag && data.renotify !== false, // same tag replaces the old one; notes update quietly
+    icon: '/assets/img/icon-192.png',
+    badge: '/assets/img/icon-192.png',
+    data: { url: data.url || '/activity' }
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/activity', self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+    for (const w of wins) {
+      if (w.url.startsWith(self.location.origin) && 'focus' in w) {
+        return w.focus().then((c) => (c && 'navigate' in c ? c.navigate(target) : c));
+      }
+    }
+    return self.clients.openWindow(target);
+  }));
+});

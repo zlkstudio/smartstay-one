@@ -33,6 +33,11 @@ if ($user['phone']) {
         </a>
       <?php endif; ?>
       <?php if (Access::can($user, 'settings')): ?>
+        <a class="list-item" href="/activity">
+          <span class="tile-icon"><?= icon('bell') ?></span>
+          <span class="grow"><span class="list-title">Jurnal și notificări</span><br><span class="list-sub">Checklist-uri, inventar, notificări push</span></span>
+          <?= icon('chevron', 'icon icon-sm chev') ?>
+        </a>
         <a class="list-item desktop-only" href="/settings">
           <span class="tile-icon"><?= icon('settings') ?></span>
           <span class="grow"><span class="list-title">Setări și stare sistem</span><br><span class="list-sub">Baze de date, integrări, server</span></span>

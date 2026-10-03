@@ -56,6 +56,8 @@ final class Audit
             // Audit must never break the action it records.
             error_log('[ONE] audit write failed: ' . $e->getMessage());
         }
+        // Push to admins for the actions they follow (sent after the response, never blocks it).
+        \One\Notify\Notifier::fromAudit($userId, $action, $targetId, $meta);
     }
 
     /** @return list<array<string,mixed>> */
