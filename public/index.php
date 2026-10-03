@@ -110,6 +110,7 @@ $router->post('/api/inventory/tech', static fn() => InventoryController::tech())
 // ── Rapoarte (Etapa 3) ─────────────────────────────────────────────────────
 $router->get('/reports', static fn() => ReportsController::overview());
 $router->get('/reports/payments', static fn() => ReportsController::payments());
+$router->get('/reports/body', static fn() => ReportsController::overviewBody());
 $router->get('/api/reports/today', static fn() => ReportsController::today());
 $router->post('/api/reports/refresh', static fn() => ReportsController::refresh());
 $router->post('/api/reports/cleaning', static fn() => ReportsController::addCleaning());

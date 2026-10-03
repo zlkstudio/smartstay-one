@@ -500,3 +500,8 @@ button.apt-row:active { background: var(--surface-2); }
 .toggle-card { transition: border-color 0.15s, background 0.15s, transform 0.12s; }
 .toggle-card:active:not(:disabled) { transform: scale(0.97); }
 button.bar:active > span { opacity: 0.7; }
+
+/* Rapoarte: schelet afișat până vine raportul de la /reports/body. */
+.stat-skel { gap: 10px; }
+.stat-skel .skeleton { display: block; }
+[data-report-body][aria-busy] .card { display: flex; flex-direction: column; gap: 12px; }

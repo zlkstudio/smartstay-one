@@ -39,11 +39,40 @@ final class ReportsController
 
     private const MAX_RANGE_DAYS = 93;
 
+    /**
+     * Shell only: tabs, period bar and a skeleton, sent at once so the tab opens instantly.
+     * The numbers (Previo + Analytics, the slow part) come from /reports/body once the page is up.
+     */
     public static function overview(): never
     {
         $user = Guard::requireAccess('reports', 'view');
         if (Access::isMaid($user)) {   // Menajera vede doar curățeniile ei, nu ocuparea/veniturile.
             redirect('/reports/payments');
+        }
+        $period = Period::fromQuery($_GET);
+        view('pages/reports/overview', [
+            'user'      => $user,
+            'pageTitle' => 'Rapoarte',
+            'active'    => 'reports',
+            'tab'       => 'overview',
+            'report'    => null,
+            'period'    => $period,
+            'page'      => null,
+            'error'     => null,
+            'deferred'  => true,
+            'canEdit'   => Access::can($user, 'reports', 'edit'),
+            'styles'    => ['assets/css/modules.css'],
+            'scripts'   => ['assets/js/reports.js'],
+        ]);
+    }
+
+    /** GET /reports/body?p=… — the computed overview as an HTML fragment (no layout), for reports.js. */
+    public static function overviewBody(): never
+    {
+        $user = Guard::requireAccess('reports', 'view');
+        if (Access::isMaid($user)) {
+            http_response_code(403);
+            exit;
         }
         $period = Period::fromQuery($_GET);
         $report = null;
@@ -61,19 +90,17 @@ final class ReportsController
                 $error = 'Istoricul Previo nu s-a putut încărca: ' . $e->getMessage();
             }
         }
+        header('Cache-Control: no-store');
         view('pages/reports/overview', [
-            'user'      => $user,
-            'pageTitle' => 'Rapoarte',
-            'active'    => 'reports',
-            'tab'       => 'overview',
-            'report'    => $report,
-            'period'    => $period,
-            'page'      => $page,
-            'error'     => $error,
-            'canEdit'   => Access::can($user, 'reports', 'edit'),
-            'styles'    => ['assets/css/modules.css'],
-            'scripts'   => ['assets/js/reports.js'],
-        ]);
+            'user'     => $user,
+            'tab'      => 'overview',
+            'report'   => $report,
+            'period'   => $period,
+            'page'     => $page,
+            'error'    => $error,
+            'deferred' => false,
+            'canEdit'  => Access::can($user, 'reports', 'edit'),
+        ], null);
     }
 
     /**

@@ -41,7 +41,9 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
     <div class="grow">
       <div class="eyebrow"><?= h(ro_date()) ?></div>
       <h1>Rapoarte</h1>
-      <?php if ($report): ?>
+      <?php if (!empty($deferred)): ?>
+        <p>Se încarcă datele din Previo…</p>
+      <?php elseif ($report): ?>
         <p>Actualizat la <?= h(local_time($report['computedAt'], 'H:i')) ?> · date din Previo</p>
       <?php endif; ?>
     </div>
@@ -75,6 +77,21 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
     <div class="alert alert-error" role="alert"><?= icon('alert', 'icon icon-sm') ?><span><?= h($error) ?> Plata menajerelor funcționează în continuare.</span></div>
   <?php endif; ?>
 
+  <?php if (!empty($deferred)):
+      $src = '/reports/body' . ($_SERVER['QUERY_STRING'] ?? '' ? '?' . $_SERVER['QUERY_STRING'] : ''); ?>
+  <div class="report-body stack" data-report-body data-src="<?= h($src) ?>" aria-busy="true">
+    <h2 class="section-title">Operațional azi</h2>
+    <div class="stat-grid stat-grid-ops">
+      <?php for ($i = 0; $i < 4; $i++): ?><div class="stat stat-skel"><span class="skeleton" style="width:45%;height:26px"></span><span class="skeleton" style="width:70%;height:13px"></span></div><?php endfor; ?>
+    </div>
+    <h2 class="section-title">Indicatori</h2>
+    <div class="kpi-grid">
+      <?php for ($i = 0; $i < 4; $i++): ?><div class="kpi stat-skel"><span class="skeleton" style="width:60%;height:24px"></span><span class="skeleton" style="width:40%;height:13px"></span></div><?php endfor; ?>
+    </div>
+    <div class="card stack-sm"><span class="skeleton" style="width:35%;height:22px"></span><span class="skeleton" style="height:120px"></span></div>
+    <div class="card stack-sm"><span class="skeleton" style="width:35%;height:22px"></span><span class="skeleton" style="height:120px"></span></div>
+  </div>
+  <?php else: ?>
   <div class="report-body stack" data-report-body>
   <?php if ($report): ?>
     <?php $t = $report['today']; $total = (int) $report['roster']['total']; ?>
@@ -451,6 +468,7 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
     </section>
   <?php endif; ?>
   </div>
+  <?php endif; ?>
 
   <dialog class="sheet" data-apt-sheet aria-label="Detalii apartament"><div class="sheet-body stack-sm" data-sheet-body></div></dialog>
 </div>

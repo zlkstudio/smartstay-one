@@ -24,9 +24,12 @@
     }
 
     initPeriod();
-    initBars();
-    initChannels();
-    initSheet();
+    const body = root.querySelector('[data-report-body]');
+    if (body && body.dataset.src) {
+      loadBody(body);
+    } else {
+      initBody();
+    }
 
     root.addEventListener('click', (event) => {
       const del = event.target.closest('[data-delete]');
@@ -56,6 +59,58 @@
   });
 
   // ── Prezentare ──────────────────────────────────────────────────────────
+
+  function initBody() {
+    initBars();
+    initChannels();
+    initSheet();
+  }
+
+  // The tab opens on a skeleton; the computed report (Previo + Analytics) arrives here.
+  function loadBody(body) {
+    const url = body.dataset.src;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/html' }, signal: controller.signal })
+      .then((r) => {
+        clearTimeout(timer);
+        if (new URL(r.url).pathname !== '/reports/body') {   // session expired → login page
+          location.href = '/login?expired=1&next=' + encodeURIComponent(location.pathname + location.search);
+          throw new Error('redirect');
+        }
+        if (!r.ok) throw new Error('Eroare ' + r.status);
+        return r.text();
+      })
+      .then((html) => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const next = doc.querySelector('[data-report-body]');
+        if (!next) throw new Error('Răspuns neașteptat de la server.');
+        // Pieces outside the body that depend on the data: "Actualizat la…", the compare label, the error.
+        const heroNext = doc.querySelector('.hero p');
+        const hero = root.querySelector('.hero .grow');
+        const heroNow = hero && hero.querySelector('p');
+        if (heroNow) heroNow.remove();
+        if (heroNext && hero) hero.appendChild(document.importNode(heroNext, true));
+        const labelNext = doc.querySelector('.period-label');
+        const label = root.querySelector('.period-label');
+        if (labelNext && label) label.innerHTML = labelNext.innerHTML;
+        const alertNext = doc.querySelector('[data-reports] > .alert-error');
+        if (alertNext) body.before(document.importNode(alertNext, true));
+        body.replaceWith(document.importNode(next, true));
+        initBody();
+      })
+      .catch((e) => {
+        clearTimeout(timer);
+        if (e.message === 'redirect') return;
+        const msg = e.name === 'AbortError' ? 'Previo răspunde greu.' : e.message;
+        body.removeAttribute('aria-busy');
+        const heroNow = root.querySelector('.hero .grow p');
+        if (heroNow) heroNow.textContent = 'Datele din Previo nu s-au putut încărca.';
+        body.innerHTML = '<div class="alert alert-error" role="alert"><span>Raportul nu s-a putut încărca. ' +
+          msg.replace(/[<>&]/g, '') + '</span></div><button type="button" class="btn btn-secondary" data-body-retry>Încearcă din nou</button>';
+        body.querySelector('[data-body-retry]').addEventListener('click', () => location.reload());
+      });
+  }
 
   function initPeriod() {
     root.querySelectorAll('[data-period-link]').forEach((a) => {
