@@ -2,8 +2,8 @@
    No library: springs are solved here and played through the Web Animations API, so transform and
    opacity run on the compositor. Every animate() call is interruptible — it starts from the element's
    current on-screen value and velocity instead of queueing behind the previous animation.
-   motion.css carries the same springs as CSS linear() easings (fallbacks generated from these tokens;
-   this file overwrites them at load so the two can never drift). */
+   motion.css carries the same springs as static CSS linear() easings, generated with cssSpring()
+   from these tokens — regenerate them there if a spring token changes. */
 (function () {
   'use strict';
 
@@ -402,20 +402,6 @@
     sync(true);
     return { sync };
   }
-
-  // ── CSS custom properties from the same tokens ─────────────────────────
-  function writeCssVars() {
-    const root = document.documentElement.style;
-    const supportsLinear = window.CSS && window.CSS.supports && window.CSS.supports('transition-timing-function', 'linear(0, 1)');
-    for (const name in tokens.spring) {
-      const s = cssSpring(tokens.spring[name]);
-      root.setProperty(`--dur-${name}`, s.duration + 'ms');
-      if (supportsLinear) root.setProperty(`--spring-${name}`, s.easing);
-    }
-    root.setProperty('--ease-exit', `cubic-bezier(${tokens.ease.exit.curve.join(', ')})`);
-    root.setProperty('--dur-exit', tokens.ease.exit.duration + 'ms');
-  }
-  writeCssVars();
 
   // iOS only applies :active while a touch listener exists — the press springs need it.
   document.addEventListener('touchstart', () => {}, { passive: true });

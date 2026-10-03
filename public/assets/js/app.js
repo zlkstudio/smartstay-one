@@ -178,10 +178,11 @@
     initBottomNav();
   });
 
-  // ── Bottom navigation: one shared pill on spring.settle, directional screen change ──
-  // Each tab is a page load. On tap the pill, icon and colour move at once (the page keeps
-  // loading underneath); the next page resumes the pill from its in-flight position and
-  // <main> slides through a cross-document view transition (motion.css + head.php).
+  // ── Bottom navigation: one shared pill on spring.settle ────────────────
+  // Each tab is a page load. Everything happens on tap, before the network: pill, icon and
+  // colour move, the current screen eases back (transform + opacity, one layer). The next
+  // page resumes the pill from its in-flight offset (inline script in layout.php) and slides
+  // its <main> in (motion.css, html[data-nav-in]). No view-transition snapshots.
   function initBottomNav() {
     var nav = document.querySelector('.bottom-nav');
     var M = window.MOTION;
@@ -190,24 +191,24 @@
     var home = -1;
     for (var i = 0; i < items.length; i++) if (items[i].classList.contains('is-active')) home = i;
     var indicator = nav.querySelector('.nav-indicator');
+    var main = document.getElementById('main');
     var html = document.documentElement;
     var target = home;
+    var leaving = null;
 
     function pill(item) { return item.querySelector('.nav-pill'); }
 
-    // Resume from the previous page's offset, then settle home on the spring.
-    if (indicator && html.style.getPropertyValue('--nav-ind-dx')) {
-      if (html.getAttribute('data-nav-to') !== String(home)) {
-        indicator.classList.add('no-transition');
-        html.style.removeProperty('--nav-ind-dx');
-        void indicator.offsetWidth;
+    // Resume: the inline script parked the pill at the previous page's offset. Let one frame
+    // paint it there, then hand it to the spring.
+    if (indicator && indicator.hasAttribute('data-resume')) {
+      indicator.removeAttribute('data-resume');
+      requestAnimationFrame(function () {
         indicator.classList.remove('no-transition');
-      } else {
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () { html.style.removeProperty('--nav-ind-dx'); });
-        });
-      }
-      html.removeAttribute('data-nav-to');
+        requestAnimationFrame(function () { indicator.style.transform = ''; });
+      });
+    }
+    if (main && html.hasAttribute('data-nav-in')) {
+      main.addEventListener('animationend', function () { html.removeAttribute('data-nav-in'); }, { once: true });
     }
 
     function offsetTo(index) {
@@ -218,11 +219,18 @@
     function remember() {
       if (target === home) return;
       try {
-        var href = items[target].getAttribute('href') || '/';
         sessionStorage.setItem('one-nav', JSON.stringify({
-          from: home, to: target, dx: offsetTo(target), path: href, t: Date.now()
+          from: home, to: target, dx: offsetTo(target), path: items[target].getAttribute('href') || '/', t: Date.now()
         }));
       } catch (e) { /* private mode: plain navigation */ }
+    }
+
+    function setActive(index) {
+      for (var j = 0; j < items.length; j++) {
+        var on = j === index;
+        items[j].classList.toggle('is-active', on);
+        if (on) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
+      }
     }
 
     nav.addEventListener('click', function (event) {
@@ -230,38 +238,41 @@
       if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
       var to = items.indexOf(item);
       if (to === target) return;
+      var dir = to > (target < 0 ? to : target) ? -1 : 1;
       target = to;
       M.haptic(); // once per selection, not per frame
+      setActive(to);
 
-      for (var j = 0; j < items.length; j++) {
-        var on = items[j] === item;
-        items[j].classList.toggle('is-active', on);
-        if (on) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
-      }
-
-      if (indicator) {
+      if (indicator && home >= 0) {
         // Retarget: the CSS transition starts from wherever the pill is right now.
         var dx = pill(item).getBoundingClientRect().left - pill(items[home]).getBoundingClientRect().left;
         if (M.reduced()) indicator.classList.add('no-transition');
-        indicator.style.transform = 'translateX(' + dx.toFixed(1) + 'px)';
+        indicator.style.transform = 'translate3d(' + dx.toFixed(1) + 'px, 0, 0)';
         indicator.setAttribute('data-tone', item.getAttribute('data-module'));
         if (M.reduced()) { void indicator.offsetWidth; indicator.classList.remove('no-transition'); }
+      }
+
+      // The screen answers the tap immediately and stays eased back while the next page loads.
+      if (main && main.animate) {
+        if (leaving) leaving.cancel();
+        var frames = M.reduced()
+          ? [{ opacity: 1 }, { opacity: 0.6 }]
+          : [{ transform: 'translate3d(0, 0, 0)', opacity: 1 }, { transform: 'translate3d(' + (dir * 12) + 'px, 0, 0)', opacity: 0.55 }];
+        leaving = main.animate(frames, { duration: M.reduced() ? 100 : 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' });
       }
       remember();
     });
 
-    // Capture the in-flight pill as late as possible: when the old page is swapped out.
-    window.addEventListener('pageswap', remember);
+    // Capture the in-flight pill as late as possible: when the old page goes away.
     window.addEventListener('pagehide', remember);
 
-    // Coming back through the back/forward cache: the old page is shown as it was left.
+    // Back/forward cache: the old page comes back exactly as it was before the tap.
     window.addEventListener('pageshow', function (event) {
-      if (!event.persisted || target === home) return;
+      if (!event.persisted) return;
+      if (leaving) { leaving.cancel(); leaving = null; }
+      if (target === home) return;
       target = home;
-      for (var j = 0; j < items.length; j++) {
-        items[j].classList.toggle('is-active', j === home);
-        if (j === home) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
-      }
+      setActive(home);
       if (indicator) {
         indicator.style.transform = '';
         indicator.setAttribute('data-tone', items[home].getAttribute('data-module'));

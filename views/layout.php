@@ -73,6 +73,15 @@ $showNav = count($navItems) > 1;
     </a>
   <?php endforeach; ?>
 </nav>
+<script nonce="<?= h(csp_nonce()) ?>">
+(function () {
+  var n = window.__oneNav, i = document.querySelector('.nav-indicator');
+  if (!n || !i || typeof n.dx !== 'number' || Math.abs(n.dx) > 600) return;
+  i.classList.add('no-transition');
+  i.style.transform = 'translateX(' + n.dx.toFixed(1) + 'px)';
+  i.setAttribute('data-resume', '');
+})();
+</script>
 <?php endif; ?>
 
 <?php if ($user && !(int) $user['must_change_password'] && Notifier::canReceive($user) && WebPush::isConfigured()): ?>

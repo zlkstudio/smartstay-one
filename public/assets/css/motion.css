@@ -1,6 +1,5 @@
-/* SmartStay ONE — motion layer. Tokens mirror assets/js/motion.js, which overwrites the --spring-*
-   and --dur-* values at load with linear() easings solved from the same damping/stiffness/mass.
-   The cubic-bezier values below are only the pre-JS / no-linear() fallback.
+/* SmartStay ONE — motion layer. Tokens mirror assets/js/motion.js (same damping/stiffness/mass).
+   The cubic-bezier values are the fallback for browsers without linear().
    Rules: transform + opacity on list items, springs for interaction, exits faster than entrances. */
 
 :root {
@@ -18,6 +17,15 @@
   --dur-exit: 160ms;
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --dur-color: 180ms;
+}
+/* Exact springs (solved from the motion.js tokens by MOTION.cssSpring; regenerate if a token changes).
+   Static on purpose: writing them from JS on <html> would restyle the whole page on every load. */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-press: linear(0, 0.0642, 0.1939, 0.3509, 0.5094, 0.6534, 0.7746, 0.8703, 0.9411, 0.9899, 1.0206, 1.0373, 1.0438, 1.0436, 1.0392, 1.0327, 1.0256, 1.0188, 1.0129, 1.008, 1.0042, 1.0015, 0.9998, 0.9987, 0.9982, 0.998, 0.9981, 0.9984, 0.9987, 0.999, 0.9993, 0.9995, 0.9997, 1);
+    --spring-settle: linear(0, 0.0499, 0.1521, 0.2789, 0.4111, 0.5367, 0.6488, 0.7442, 0.8221, 0.8834, 0.9298, 0.9637, 0.9872, 1.0026, 1.0119, 1.0167, 1.0184, 1.0181, 1.0165, 1.0143, 1.0118, 1.0095, 1.0073, 1.0054, 1.0038, 1.0026, 1.0016, 1.0009, 1.0004, 1.0001, 0.9998, 1);
+    --spring-pop: linear(0, 0.052, 0.1695, 0.329, 0.5086, 0.6896, 0.857, 1.0002, 1.1128, 1.1922, 1.2391, 1.2566, 1.2497, 1.224, 1.1858, 1.1407, 1.0938, 1.0494, 1.0105, 0.9791, 0.956, 0.9415, 0.9347, 0.9347, 0.94, 0.949, 0.9602, 0.9722, 0.9839, 0.9944, 1.0031, 1.0097, 1.0141, 1.0164, 1.0169, 1.0159, 1.0139, 1.0111, 1.0081, 1.005, 1.0022, 0.9998, 0.998, 0.9967, 0.9959, 0.9956, 0.9958, 0.9962, 0.9969, 0.9977, 0.9985, 0.9992, 0.9999, 1.0004, 1.0008, 1.001, 1.0011, 1.0011, 1.001, 1.0009, 1.0007, 1.0005, 1.0003, 1.0001, 1);
+  }
 }
 
 /* ── Press: reservation cards ────────────────────────────────────────────
@@ -67,13 +75,17 @@ html.ptr, html.ptr body { overscroll-behavior-y: none; }
 .chips-teal .chip-thumb { background: var(--teal); }
 .period-bar .chips.has-pill .chip-thumb { height: 34px; }
 
-/* ── Bottom navigation: one indicator, springs, no fade ──────────────── */
-.nav-item { transition: color var(--dur-color) var(--ease-out); -webkit-tap-highlight-color: transparent; }
+/* ── Bottom navigation: one indicator, springs, no fade ──────────────
+   Everything that moves inside the blurred bar gets its own compositor layer, so the
+   backdrop-filter is never repainted while the pill and icons animate (iOS). */
+.nav-item { transition: color var(--dur-color) var(--ease-out); -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; }
 .nav-item .nav-pill { position: relative; }
-.nav-item .icon { transition: transform var(--dur-settle) var(--spring-settle); }
-.nav-item.is-active .icon { transform: translateY(-1px) scale(1.08); }
+.nav-item .icon { transform: translateZ(0); will-change: transform;
+  transition: transform var(--dur-settle) var(--spring-settle); }
+.nav-item.is-active .icon { transform: translate3d(0, -1px, 0) scale(1.08); }
 .nav-indicator { position: absolute; inset: 0; z-index: -1; border-radius: var(--r-pill); background: var(--blue-soft);
-  transform: translateX(var(--nav-ind-dx, 0px)); will-change: transform;
+  transform: translate3d(0, 0, 0); will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
   transition: transform var(--dur-settle) var(--spring-settle), background-color var(--dur-color) var(--ease-out); }
 .nav-indicator.no-transition { transition: none; }
 .nav-indicator[data-tone="housekeeping"] { background: var(--violet-soft); }
@@ -83,30 +95,16 @@ html.ptr, html.ptr body { overscroll-behavior-y: none; }
 /* Daynav thumb (Astăzi / Mâine / …) moves on the settle spring. */
 .daynav-thumb { transition: transform var(--dur-settle) var(--spring-settle); }
 
-/* ── Screen change between bottom tabs (cross-document View Transitions) ─
-   Topbar + tab bar are part of the root snapshot, which swaps instantly: they never move.
-   Only <main> travels: 18 %, directional, old 200 ms + new 280 ms overlapping by 80 ms. */
-@view-transition { navigation: auto; }
-.main { view-transition-name: main; }
-::view-transition { pointer-events: none; }
-::view-transition-old(root) { display: none; }
-::view-transition-new(root) { animation: none; }
-::view-transition-group(main) { animation: none; }
-::view-transition-old(main), ::view-transition-new(main) { mix-blend-mode: normal; height: auto; }
-
-html[data-vt="right"]::view-transition-old(main) { animation: vt-out-left 200ms var(--ease-out) both; }
-html[data-vt="right"]::view-transition-new(main) { animation: vt-in-right 280ms var(--ease-out) 120ms both; }
-html[data-vt="left"]::view-transition-old(main)  { animation: vt-out-right 200ms var(--ease-out) both; }
-html[data-vt="left"]::view-transition-new(main)  { animation: vt-in-left 280ms var(--ease-out) 120ms both; }
-html[data-vt="fade"]::view-transition-old(main)  { animation: vt-fade-out 120ms linear both; }
-html[data-vt="fade"]::view-transition-new(main)  { animation: vt-fade-in 120ms linear both; }
-
-@keyframes vt-out-left  { 70% { opacity: 0.92; } to { transform: translateX(-18%); opacity: 0; } }
-@keyframes vt-out-right { 70% { opacity: 0.92; } to { transform: translateX(18%); opacity: 0; } }
-@keyframes vt-in-right  { from { transform: translateX(18%); opacity: 0; } }
-@keyframes vt-in-left   { from { transform: translateX(-18%); opacity: 0; } }
-@keyframes vt-fade-out  { to { opacity: 0; } }
-@keyframes vt-fade-in   { from { opacity: 0; } }
+/* ── Screen change between bottom tabs ──────────────────────────────────
+   No snapshots, no waiting: on tap the current screen eases back at once (app.js) while the
+   next page loads; the new screen slides in 16 px from the direction of travel (220 ms).
+   One composited layer (.main), transform + opacity only. The bars never move. */
+html[data-nav-in="right"] .main { animation: screen-in-right 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+html[data-nav-in="left"] .main  { animation: screen-in-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+html[data-nav-in="fade"] .main  { animation: screen-fade-in 120ms linear backwards; }
+@keyframes screen-in-right { from { transform: translate3d(16px, 0, 0); opacity: 0; } }
+@keyframes screen-in-left  { from { transform: translate3d(-16px, 0, 0); opacity: 0; } }
+@keyframes screen-fade-in  { from { opacity: 0; } }
 
 /* ── Reports ─────────────────────────────────────────────────────────── */
 /* Headline numbers wait (max 1.2 s) for motion.js to start counting, so the final value never
