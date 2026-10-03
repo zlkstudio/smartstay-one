@@ -48,6 +48,7 @@
     const $sel = root.querySelector('[data-selected]');
     let rows = [];
     let doors = {}; // apartment → last 2 Nuki events
+    let doorErrors = {}; // apartment → why Nuki could not be read
 
     function syncBar() {
       if (!$bar) return;
@@ -71,7 +72,7 @@
     // Departing guest chose cash at check-in → the money waits on the kitchen table.
     function cashNotice(r) {
       if (!r.cashDue) return '';
-      return `<span class="hk-cash">${icon('alert')}<span>Oaspetele trebuie să lase <strong class="tabular">${money(r.cashDue)} LEI</strong> numerar pe masa din bucătărie. Ridică banii și anunță.</span></span>`;
+      return `<span class="hk-cash">${icon('alert')}<span>Oaspetele trebuie să lase <strong class="tabular">${money(r.cashDue)} LEI</strong></span></span>`;
     }
 
     function doorTime(iso) {
@@ -88,6 +89,7 @@
       if (!r.hasLock) return '';
       const events = doors[r.apartment];
       if (events === undefined) return '<span class="hk-door is-loading">Nuki…</span>';
+      if (doorErrors[r.apartment]) return `<span class="hk-door">Nuki indisponibil (${esc(doorErrors[r.apartment])})</span>`;
       if (!events.length) return '<span class="hk-door">Nuki: fără evenimente recente</span>';
       return '<span class="hk-door">' + events.map((e) =>
         `<span>${esc(doorTime(e.at))} · ${esc(e.action)}${e.via ? ' · ' + esc(e.via) : ''}${e.name ? ' · ' + esc(e.name) : ''}${e.ok ? '' : ' · eșuat'}</span>`
@@ -147,6 +149,7 @@
       window.ONE.api('/api/housekeeping/door-log?apartments=' + encodeURIComponent(apts.join(',')), { timeout: 30000 })
         .then((data) => {
           const logs = data.logs || {};
+          doorErrors = data.errors || {};
           apts.forEach((a) => { doors[a] = logs[a] || []; });
           render();
         })

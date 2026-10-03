@@ -158,7 +158,7 @@ final class HousekeepingController
         $apartments = array_slice(array_values(array_intersect($requested, $allowed)), 0, 30);
 
         try {
-            $logs = Nuki::recentEvents($apartments, 2);
+            $logs = Nuki::recentEvents($apartments, 2, $errors);
         } catch (RuntimeException $e) {
             json_response(['ok' => false, 'error' => $e->getMessage()], 502);
         }
@@ -171,7 +171,7 @@ final class HousekeepingController
             }
             unset($events);
         }
-        json_response(['ok' => true, 'logs' => (object) $logs]);
+        json_response(['ok' => true, 'logs' => (object) $logs, 'errors' => (object) $errors]);
     }
 
     /** POST /api/housekeeping/assign {maid: key, apartments: [..]} */

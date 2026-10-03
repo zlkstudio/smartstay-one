@@ -138,11 +138,14 @@ final class Nuki
         return $out;
     }
 
-    /** Log actions worth showing (lock / unlock / door sensor). System noise (calibration, firmware…) is skipped. */
+    /** Labels for the lock log. Unknown actions still show ("Eveniment N") — only pure system noise is skipped. */
     private const LOG_ACTIONS = [
         1 => 'Descuiat', 2 => 'Încuiat', 3 => 'Deschis (unlatch)', 4 => "Încuiat (Lock 'n' Go)",
-        5 => "Lock 'n' Go cu deschidere", 240 => 'Ușă deschisă', 241 => 'Ușă închisă',
+        5 => "Lock 'n' Go cu deschidere", 208 => 'Ușă întredeschisă', 209 => 'Stare ușă neclară',
+        224 => 'Sonerie', 240 => 'Ușă deschisă', 241 => 'Ușă închisă', 242 => 'Senzor ușă blocat',
     ];
+    /** Firmware, calibration, log on/off, initialisation — never what the team is looking for. */
+    private const LOG_NOISE = [243, 250, 251, 252, 253, 254, 255];
     private const LOG_TRIGGERS = [
         0 => '', 1 => 'manual', 2 => 'buton', 3 => 'automat', 4 => 'web',
         5 => 'aplicație', 6 => 'auto-lock', 7 => 'accesoriu', 255 => 'tastatură',
@@ -153,16 +156,24 @@ final class Nuki
      * Last $count meaningful lock events per apartment, newest first — one parallel round to Nuki,
      * cached 60 s in storage/cache (holds names: never under public/). Apartments without a lock are skipped.
      * @param list<string> $apartments
+     * Locks Nuki could not be asked about land in $errors (apartment => short reason) instead of an empty list,
+     * so the card says why rather than "no events".
      * @return array<string, list<array{action:string, via:string, name:string, at:string, ok:bool}>>
      */
-    public static function recentEvents(array $apartments, int $count = 2): array
+    public static function recentEvents(array $apartments, int $count = 2, ?array &$errors = null): array
     {
         $locks = self::smartlocks();
+        $errors = [];
         $wanted = [];
         foreach ($apartments as $apartment) {
             $apartment = self::cleanApartment((string) $apartment);
-            if (isset($locks[$apartment]) && preg_match('/^\d{5,20}$/', $locks[$apartment])) {
+            if (!isset($locks[$apartment])) {
+                continue;
+            }
+            if (preg_match('/^\d{5,20}$/', $locks[$apartment])) {
                 $wanted[$apartment] = $locks[$apartment];
+            } else {
+                $errors[$apartment] = 'ID yală invalid în config/nuki.php';
             }
         }
         if (!$wanted) {
@@ -186,23 +197,24 @@ final class Nuki
             return $out;
         }
 
-        // limit=15: the latest raw entries can be system noise; we keep the first $count meaningful ones.
+        // limit=30: the latest raw entries can be system noise; we keep the first $count real ones.
         $paths = [];
         foreach ($missing as $apartment => $lockId) {
-            $paths[$apartment] = "/smartlock/$lockId/log?limit=15";
+            $paths[$apartment] = "/smartlock/$lockId/log?limit=30";
         }
         $tz = new \DateTimeZone(date_default_timezone_get());
         foreach (self::requestMany($paths, 10) as $apartment => $res) {
             if ($res['error'] !== '' || $res['status'] !== 200) {
                 self::log(sprintf('log apt=%s http=%d %s', $apartment, $res['status'], $res['error'] ?: 'FAIL'));
-                continue; // no line on the card rather than a wrong one
+                $errors[$apartment] = $res['error'] !== '' ? 'fără răspuns' : 'HTTP ' . $res['status'];
+                continue;
             }
             $entries = array_filter((array) json_decode($res['body'], true), 'is_array');
             usort($entries, static fn(array $a, array $b): int => strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? '')));
             $events = [];
             foreach ($entries as $entry) {
                 $action = (int) ($entry['action'] ?? 0);
-                if (!isset(self::LOG_ACTIONS[$action]) || empty($entry['date'])) {
+                if (in_array($action, self::LOG_NOISE, true) || empty($entry['date'])) {
                     continue;
                 }
                 try {
@@ -210,10 +222,11 @@ final class Nuki
                 } catch (\Exception) {
                     continue;
                 }
+                [$name, $via] = self::logActor((string) ($entry['name'] ?? ''), (int) ($entry['trigger'] ?? -1));
                 $events[] = [
-                    'action' => self::LOG_ACTIONS[$action],
-                    'via'    => self::LOG_TRIGGERS[(int) ($entry['trigger'] ?? -1)] ?? '',
-                    'name'   => mb_substr(trim((string) ($entry['name'] ?? '')), 0, 40),
+                    'action' => self::LOG_ACTIONS[$action] ?? "Eveniment $action",
+                    'via'    => $via,
+                    'name'   => $name,
                     'at'     => $at,
                     'ok'     => (int) ($entry['state'] ?? 0) === 0,
                 ];
@@ -279,6 +292,25 @@ final class Nuki
         $error = curl_error($ch);
         curl_close($ch);
         return ['status' => $status, 'body' => is_string($response) ? $response : '', 'error' => $error];
+    }
+
+    /**
+     * Who acted, as the team reads it. "Nuki Web (…)" is the Web API = the Guest App door buttons;
+     * " (Keypad)" is dropped because the trigger already says "tastatură".
+     * @return array{0:string, 1:string} [name, via]
+     */
+    private static function logActor(string $raw, int $trigger): array
+    {
+        $name = trim($raw);
+        $via = self::LOG_TRIGGERS[$trigger] ?? '';
+        if (stripos($name, 'Nuki Web') === 0) {
+            return ['', 'Guest App'];
+        }
+        $name = trim((string) preg_replace('/\s*\((keypad|tastatur[aă])\)\s*$/iu', '', $name));
+        if ($name !== '' && strcasecmp($name, 'keypad') === 0) {
+            $name = '';
+        }
+        return [mb_substr($name, 0, 40), $via];
     }
 
     /**
