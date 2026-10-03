@@ -9,7 +9,7 @@ use One\Notify\Notifier;
 use One\Notify\PushSubscriptions;
 use One\Notify\WebPush;
 
-/** Admin only: Jurnal (activity log) + this device's push subscription. */
+/** Jurnal (admin only) + push subscription of the current device (admin, manager, menajeră). */
 final class NotificationsController
 {
     /** GET /activity[?f=inventory] — module actions from audit_log, newest first, in plain words. */
@@ -29,15 +29,13 @@ final class NotificationsController
             'backHref'  => '/account',
             'filter'    => $filter,
             'rows'      => $rows,
-            'push'      => self::pushState($user),
-            'scripts'   => ['assets/js/push.js'],
         ]);
     }
 
     /** POST /api/push/subscribe {endpoint, keys:{p256dh, auth}} */
     public static function subscribe(): never
     {
-        $user = Guard::requireAccess('settings', 'edit');
+        $user = self::requireReceiver();
         Guard::requireCsrf();
         if (!WebPush::isConfigured()) {
             json_response(['ok' => false, 'error' => 'Notificările nu sunt configurate pe server (php bin/push-keys.php).'], 503);
@@ -57,7 +55,7 @@ final class NotificationsController
     /** POST /api/push/unsubscribe {endpoint} */
     public static function unsubscribe(): never
     {
-        $user = Guard::requireAccess('settings', 'edit');
+        $user = self::requireReceiver();
         Guard::requireCsrf();
         PushSubscriptions::delete((int) $user['id'], (string) (request_json()['endpoint'] ?? ''));
         json_response(['ok' => true, 'devices' => PushSubscriptions::countFor((int) $user['id'])]);
@@ -66,7 +64,7 @@ final class NotificationsController
     /** POST /api/push/test — one notification to the caller's own devices, sent now. */
     public static function test(): never
     {
-        $user = Guard::requireAccess('settings', 'edit');
+        $user = self::requireReceiver();
         Guard::requireCsrf();
         if (!WebPush::isConfigured()) {
             json_response(['ok' => false, 'error' => 'Notificările nu sunt configurate pe server.'], 503);
@@ -81,13 +79,12 @@ final class NotificationsController
         json_response(['ok' => true, 'message' => "Test trimis pe {$result['sent']} dispozitiv(e)."]);
     }
 
-    /** @return array{configured:bool, publicKey:string, devices:int} */
-    private static function pushState(array $user): array
+    private static function requireReceiver(): array
     {
-        return [
-            'configured' => WebPush::isConfigured(),
-            'publicKey'  => WebPush::isConfigured() ? WebPush::publicKey() : '',
-            'devices'    => PushSubscriptions::countFor((int) $user['id']),
-        ];
+        $user = Guard::requireLogin();
+        if (!Notifier::canReceive($user)) {
+            Guard::forbidden($user);
+        }
+        return $user;
     }
 }

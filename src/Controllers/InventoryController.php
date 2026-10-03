@@ -156,7 +156,9 @@ final class InventoryController
         if ($result === null) {
             json_response(['ok' => false, 'error' => "Apartamentul $apartment nu există în inventar."], 404);
         }
-        Audit::log((int) $user['id'], 'inventory.batch', 'inventory', $apartment, ['op' => $op, 'applied' => $result['applied']]);
+        Audit::log((int) $user['id'], 'inventory.batch', 'inventory', $apartment, [
+            'op' => $op, 'applied' => $result['applied'], 'values' => $result['values'],
+        ]);
 
         $labels = ['set' => 'Set scăzut', 'box' => 'Cutie adăugată', 'undo' => 'Operația a fost anulată'];
         json_response([

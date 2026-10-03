@@ -47,6 +47,11 @@ if ($user['phone']) {
     </div>
   <?php endif; ?>
 
+  <?php if (\One\Notify\Notifier::canReceive($user)): ?>
+    <h2 class="section-title">Notificări</h2>
+    <?php require ONE_ROOT . '/views/partials/push-card.php'; ?>
+  <?php endif; ?>
+
   <h2 class="section-title">Cont</h2>
   <div class="list">
     <a class="list-item" href="/account/password">

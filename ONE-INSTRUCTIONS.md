@@ -139,16 +139,20 @@ HTML și `/api/` merg mereu la rețea. Paginile de modul încarcă CSS/JS prin `
 
 ---
 
-### 5.1 Notificări push + Jurnal (1.4.0)
-- **Ce trimite**: checklist trimis (`housekeeping.checklist`) + orice modificare în Inventar (`inventory.adjust|batch|note|tech`),
-  către toate dispozitivele adminilor activi, **mai puțin cel care a făcut acțiunea**. Altele: `'push' => ['actions' => [...]]` în `config/app.php`.
-- **Unde**: Contul meu → *Jurnal și notificări* (`/activity`) — listă din `audit_log` + butonul *Activează pe acest telefon*.
+### 5.1 Notificări push + Jurnal (1.4.1)
+| Eveniment | Cine primește |
+|---|---|
+| Checklist trimis | admin, manager |
+| Lenjeriile unui apartament intră pe roșu (din +/− sau „Scade un set”) | admin, manager, menajere |
+| „Necesar” / „Tehnic” modificat (se actualizează fără sunet) | admin, manager |
+
+- Setul scăzut, cutia, prosoapele și +/− fără trecere pe roșu **nu** dau notificare — rămân doar în Jurnal (`/activity`, admin).
+- Cel care a făcut acțiunea nu primește notificarea (`'push' => ['notify_self' => true]` schimbă asta). Alte acțiuni: `'push' => ['actions' => [...]]` (admin + manager).
+- **Activare**: la deschiderea aplicației apare jos „Activează notificările” (o dată; „Mai târziu” = din nou după 3 zile). Dacă permisiunea e deja dată,
+  telefonul se reabonează singur și se resincronizează zilnic cu serverul. Manual: Contul meu → Notificări.
   iPhone: doar din aplicația instalată pe ecranul principal (iOS 16.4+).
-- Apăsările +/− pe același apartament se adună într-o singură notificare (aceeași etichetă, ultimele 5 min): „Lenjerii +3 (acum 6)”.
-- Trimiterea pleacă **după** răspuns (`fastcgi_finish_request` / `litespeed_finish_request`), deci nu încetinește +/− sau checklist-ul.
-- Web Push fără Composer: `src/Notify/WebPush.php` (aes128gcm + VAPID, doar openssl + curl). Chei: `php bin/push-keys.php` → `config/push.php` (PROTECTED_CONFIGS).
-  `--force` = chei noi → toate telefoanele trebuie reactivate.
-- Abonamentele moarte (HTTP 404/410 de la Apple/Google) se șterg singure din `push_subscriptions`.
+- Trimiterea pleacă **după** răspuns (`fastcgi_finish_request` / `litespeed_finish_request`). Abonamentele moarte (404/410) se șterg singure.
+- Web Push fără Composer: `src/Notify/WebPush.php`. Chei: `php bin/push-keys.php` → `config/push.php` (PROTECTED_CONFIGS); `--force` = toate telefoanele se reactivează.
 
 ## 6. Server
 

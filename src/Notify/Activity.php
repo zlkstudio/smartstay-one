@@ -6,6 +6,7 @@ namespace One\Notify;
 use One\Audit;
 use One\Db\Database;
 use One\Inventory\InventoryRepository;
+use One\Inventory\Stock;
 
 /**
  * Human text for audit_log rows — one source for the Jurnal page and for push notifications,
@@ -48,9 +49,10 @@ final class Activity
 
             case 'inventory.adjust':
                 $delta = (int) ($meta['delta'] ?? 0);
+                $red = self::linenTurnedRed('inventory.adjust', $apt, $meta) !== null ? ' — pe roșu' : '';
                 return ['title' => "Inventar · Apt $apt", 'url' => '/inventory',
-                    'body' => sprintf('%s: %s %s%d (acum %d)', $who, $item((string) ($meta['item'] ?? '')),
-                        $delta > 0 ? '+' : '−', abs($delta), (int) ($meta['value'] ?? 0))];
+                    'body' => sprintf('%s: %s %s%d (acum %d)%s', $who, $item((string) ($meta['item'] ?? '')),
+                        $delta > 0 ? '+' : '−', abs($delta), (int) ($meta['value'] ?? 0), $red)];
 
             case 'inventory.batch':
                 $op = ['set' => 'a scăzut un set', 'box' => 'a adăugat o cutie', 'undo' => 'a anulat ultima operație'][$meta['op'] ?? ''] ?? 'operație stoc';
@@ -61,7 +63,8 @@ final class Activity
                     }
                 }
                 return ['title' => "Inventar · Apt $apt", 'url' => '/inventory',
-                    'body' => "$who $op" . ($parts ? ': ' . implode(', ', $parts) : '') . '.'];
+                    'body' => "$who $op" . ($parts ? ': ' . implode(', ', $parts) : '')
+                        . (self::linenTurnedRed('inventory.batch', $apt, $meta) !== null ? ' — lenjerii pe roșu' : '') . '.'];
 
             case 'inventory.note':
                 $text = trim((string) ($meta['text'] ?? ''));
@@ -89,35 +92,25 @@ final class Activity
     }
 
     /**
-     * Inventory +/− taps by one user on one apartment in the last minutes, summed per item —
-     * so the push shows "Lenjerii +3 (acum 7)" once instead of three separate notifications.
+     * Lenjerii remaining when this inventory action moved the apartment INTO the red zone
+     * (Stock::level critical now, not critical before). null otherwise. Works for +/− and set/box/undo.
      */
-    public static function inventoryBurst(int $userId, string $apartment, int $minutes = 5): ?string
+    public static function linenTurnedRed(string $action, string $apartment, array $meta): ?int
     {
-        try {
-            $stmt = Database::get('one')->prepare(
-                'SELECT meta FROM audit_log WHERE user_id = ? AND action = \'inventory.adjust\' AND target_id = ?
-                   AND created_at > UTC_TIMESTAMP() - INTERVAL ? MINUTE ORDER BY id'
-            );
-            $stmt->execute([$userId, $apartment, $minutes]);
-        } catch (\Throwable) {
+        if ($action === 'inventory.adjust' && ($meta['item'] ?? '') === 'lenjerie') {
+            $after = (int) ($meta['value'] ?? 0);
+            $before = $after - (int) ($meta['delta'] ?? 0);
+        } elseif ($action === 'inventory.batch' && isset($meta['values']['lenjerie'])) {
+            $after = (int) $meta['values']['lenjerie'];
+            $before = $after - (int) ($meta['applied']['lenjerie'] ?? 0);
+        } else {
             return null;
         }
-        $sum = [];
-        $now = [];
-        foreach ($stmt->fetchAll() as $row) {
-            $m = json_decode((string) $row['meta'], true) ?: [];
-            $key = (string) ($m['item'] ?? '');
-            $sum[$key] = ($sum[$key] ?? 0) + (int) ($m['delta'] ?? 0);
-            $now[$key] = (int) ($m['value'] ?? 0);
+        if ($after >= $before || $apartment === '') {
+            return null;
         }
-        $parts = [];
-        foreach ($sum as $key => $d) {
-            $label = InventoryRepository::ITEMS[$key] ?? $key;
-            $parts[] = $d === 0 ? "$label neschimbat (acum {$now[$key]})"
-                : sprintf('%s %s%d (acum %d)', $label, $d > 0 ? '+' : '−', abs($d), $now[$key]);
-        }
-        return $parts ? implode(' · ', $parts) : null;
+        return Stock::level($apartment, $after) === 'critical' && Stock::level($apartment, $before) !== 'critical'
+            ? $after : null;
     }
 
     /**

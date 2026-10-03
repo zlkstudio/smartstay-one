@@ -4,6 +4,8 @@
  * @var array $user  @var string $pageTitle  @var ?string $active  @var string $content
  */
 use One\Auth\Access;
+use One\Notify\Notifier;
+use One\Notify\WebPush;
 
 $user = $user ?? null;
 $active = $active ?? null;
@@ -71,6 +73,21 @@ $showNav = count($navItems) > 1;
     </a>
   <?php endforeach; ?>
 </nav>
+<?php endif; ?>
+
+<?php if ($user && !(int) $user['must_change_password'] && Notifier::canReceive($user) && WebPush::isConfigured()): ?>
+<div class="push-prompt" data-push-prompt data-key="<?= h(WebPush::publicKey()) ?>" hidden role="dialog" aria-labelledby="push-prompt-title">
+  <span class="tile-icon"><?= icon('bell') ?></span>
+  <div class="grow">
+    <strong id="push-prompt-title">Activează notificările</strong>
+    <p><?= $isMaid ? 'Afli imediat când un apartament rămâne fără lenjerii.' : 'Checklist-uri trimise și apartamente cu lenjerii pe roșu, direct pe telefon.' ?></p>
+    <div class="push-prompt-actions">
+      <button type="button" class="btn btn-primary btn-sm" data-push-prompt-yes>Activează</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-push-prompt-later>Mai târziu</button>
+    </div>
+  </div>
+</div>
+<script src="<?= h(asset('assets/js/push.js')) ?>" defer></script>
 <?php endif; ?>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>

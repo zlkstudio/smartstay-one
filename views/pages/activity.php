@@ -2,7 +2,6 @@
 /**
  * Jurnal activitate (admin) + push pe acest dispozitiv.
  * @var array $user @var string $filter @var list<array{title:string,body:string,url:string,at:string,action:string}> $rows
- * @var array{configured:bool,publicKey:string,devices:int} $push
  */
 use One\Notify\Activity;
 
@@ -11,24 +10,7 @@ $today = local_time(utc_now(), 'Y-m-d');
 $yesterday = date('Y-m-d', strtotime('-1 day'));
 ?>
 <div class="stack">
-  <div class="card stack-sm" data-push
-       data-configured="<?= $push['configured'] ? '1' : '0' ?>"
-       data-key="<?= h($push['publicKey']) ?>"
-       data-devices="<?= (int) $push['devices'] ?>">
-    <div class="row">
-      <span class="tile-icon"><?= icon('bell') ?></span>
-      <div class="grow">
-        <div class="card-title">Notificări push</div>
-        <div class="list-sub" data-push-status>Se verifică…</div>
-      </div>
-    </div>
-    <p class="faint push-help">Checklist-uri trimise și orice modificare în Inventar ajung ca notificare pe telefoanele adminilor. Tu nu primești notificări pentru propriile acțiuni.</p>
-    <div class="push-actions">
-      <button type="button" class="btn btn-primary btn-sm" data-push-on hidden><?= icon('bell') ?><span>Activează pe acest telefon</span></button>
-      <button type="button" class="btn btn-secondary btn-sm" data-push-test hidden><?= icon('send') ?><span>Trimite un test</span></button>
-      <button type="button" class="btn btn-ghost btn-sm" data-push-off hidden>Dezactivează</button>
-    </div>
-  </div>
+  <?php require ONE_ROOT . '/views/partials/push-card.php'; ?>
 
   <nav class="chips" aria-label="Filtru jurnal">
     <?php foreach (Activity::FILTERS as $key => [$label]): ?>

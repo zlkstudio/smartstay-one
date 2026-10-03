@@ -57,15 +57,19 @@ final class PushSubscriptions
     }
 
     /**
-     * Devices of active admins (optionally one user only).
+     * Devices of active users with one of $roles (optionally one user only).
+     * @param list<string> $roles
      * @return array<int, array{endpoint:string, p256dh:string, auth:string, user_id:int}> keyed by id
      */
-    public static function forAdmins(?int $exceptUserId = null, ?int $onlyUserId = null): array
+    public static function forRoles(array $roles, ?int $exceptUserId = null, ?int $onlyUserId = null): array
     {
+        if (!$roles) {
+            return [];
+        }
         $sql = 'SELECT s.id, s.user_id, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s
                 JOIN users u ON u.id = s.user_id
-                WHERE u.active = 1 AND u.role = \'admin\'';
-        $args = [];
+                WHERE u.active = 1 AND u.role IN (' . implode(',', array_fill(0, count($roles), '?')) . ')';
+        $args = array_values($roles);
         if ($exceptUserId !== null) {
             $sql .= ' AND s.user_id <> ?';
             $args[] = $exceptUserId;
