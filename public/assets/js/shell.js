@@ -294,51 +294,34 @@
     });
   }
 
-  // Cortină: pagina nouă se dezvăluie peste cea veche (de sus în jos; la Înapoi de jos în sus),
-  // cu o linie luminoasă pe margine. Se decupează doar porțiunea vizibilă pe ecran, apoi clip-ul
-  // dispare. Pagina veche coboară puțin și se estompează în spate.
-  var CURTAIN = 'cubic-bezier(0.65, 0, 0.35, 1)';
+  // Alunecare (aleasă de Romeo în playground): între module pagina nouă alunecă din direcția tabului
+  // peste cea veche, care se retrage și se estompează; în același modul fade cu ridicare;
+  // Înapoi inversează direcția. Doar transform/opacity.
+  var EASE_IN = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  var EASE_OUT = 'cubic-bezier(0.4, 0, 0.6, 1)';
   function animate(oldMain, newMain, kind) {
+    var a, b;
     if (reduced()) {
-      var fa = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
-      var fb = newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
-      return Promise.all([fa.finished, fb.finished]).catch(function () {});
+      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+      b = newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+    } else if (kind === 'right' || kind === 'left') {
+      var dir = kind === 'right' ? 1 : -1;
+      a = oldMain.animate([
+        { transform: 'translate3d(0,0,0) scale(1)', opacity: 1 },
+        { transform: 'translate3d(' + (-dir * 22) + '%,0,0) scale(0.96)', opacity: 0 }
+      ], { duration: 340, easing: EASE_OUT, fill: 'forwards' });
+      b = newMain.animate([
+        { transform: 'translate3d(' + (dir * 45) + '%,0,0)', opacity: 0 },
+        { transform: 'translate3d(0,0,0)', opacity: 1 }
+      ], { duration: 440, easing: EASE_IN });
+    } else {
+      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE_OUT, fill: 'forwards' });
+      b = newMain.animate([
+        { transform: 'translate3d(0,14px,0)', opacity: 0 },
+        { transform: 'translate3d(0,0,0)', opacity: 1 }
+      ], { duration: 320, easing: EASE_IN });
     }
-    var up = kind === 'left';
-    var duration = kind === 'fade' ? 340 : 440;
-    var vh = window.innerHeight;
-    var rect = newMain.getBoundingClientRect();
-    var top = document.querySelector('.topbar');
-    var visTop = Math.max(rect.top, top ? top.getBoundingClientRect().bottom : 0);
-    var start = Math.max(0, visTop - rect.top);                 // în coordonatele paginii noi
-    var end = vh - rect.top;                                    // marginea de jos a ecranului, nu a paginii
-    // Marginea de jos e relativă la înălțimea paginii (calc(100% - y)): dacă datele sosesc în timpul
-    // cortinei și pagina se lungește, decupajul rămâne corect.
-    var clipAt = function (y) {
-      return up ? 'inset(' + y.toFixed(1) + 'px 0px calc(100% - ' + end.toFixed(1) + 'px) 0px)'
-                : 'inset(' + start.toFixed(1) + 'px 0px calc(100% - ' + y.toFixed(1) + 'px) 0px)';
-    };
-    var from = up ? end : start;
-    var to = up ? start : end;
-
-    var b = newMain.animate([{ clipPath: clipAt(from) }, { clipPath: clipAt(to) }], { duration: duration, easing: CURTAIN });
-    var a = oldMain.animate([
-      { transform: 'translate3d(0,0,0)', opacity: 1 },
-      { transform: 'translate3d(0,' + (up ? -18 : 18) + 'px,0)', opacity: 0.35, offset: 0.85 },
-      { transform: 'translate3d(0,' + (up ? -20 : 20) + 'px,0)', opacity: 0 }
-    ], { duration: duration, easing: CURTAIN, fill: 'forwards' });
-
-    var edge = document.createElement('div');
-    edge.className = 'swap-edge';
-    edge.style.top = rect.top + 'px';
-    document.body.appendChild(edge);
-    var c = edge.animate([
-      { transform: 'translate3d(0,' + from.toFixed(1) + 'px,0)', opacity: 1 },
-      { transform: 'translate3d(0,' + to.toFixed(1) + 'px,0)', opacity: 1, offset: 0.9 },
-      { transform: 'translate3d(0,' + to.toFixed(1) + 'px,0)', opacity: 0 }
-    ], { duration: duration, easing: CURTAIN, fill: 'forwards' });
-
-    return Promise.all([a.finished, b.finished, c.finished]).catch(function () {}).then(function () { edge.remove(); });
+    return Promise.all([a.finished, b.finished]).catch(function () {});
   }
 
   // Înapoi / înainte.
@@ -403,7 +386,6 @@
     var splash = document.getElementById('splash');
     if (!splash || !html.classList.contains('splash-on')) return;
     var fill = splash.querySelector('[data-splash-fill]');
-    var statusEl = splash.querySelector('[data-splash-status]');
     var pctEl = splash.querySelector('[data-splash-pct]');
     var total = 1, done = 0, finished = false, shown = 0;
     var t0 = performance.now();
@@ -415,8 +397,7 @@
       fill.style.transform = 'translate3d(' + (pct - 100 + (pct < 100 ? 4 : 0)) + '%,0,0)';
       pctEl.textContent = pct + '%';
     }
-    function step(label) {
-      if (label) statusEl.textContent = label + ' ✓';
+    function step() {
       done += 1;
       render();
       maybeFinish();
@@ -427,7 +408,6 @@
       if (!force && done < total) return;
       finished = true;
       done = total; render();
-      statusEl.textContent = 'Gata';
       var wait = Math.max(force ? 0 : 250, MIN_SPLASH - (performance.now() - t0));
       setTimeout(function () {
         splash.classList.add('is-done');
@@ -452,11 +432,9 @@
     var current = currentNavIndex();
     var jobs = navItems.filter(function (item, i) { return i !== current; }).map(function (item) {
       return function () {
-        var label = (item.textContent || '').trim();
         var href = new URL(item.href, location.href);
-        statusEl.textContent = 'Se încarcă ' + label + '…';
         return ONE.fetchHtml(href.pathname + href.search).then(function (res) {
-          step(label);
+          step();
           var doc = new DOMParser().parseFromString(res.html, 'text/html');
           var subtasks = [];
           doc.querySelectorAll('head link[rel="stylesheet"][href], head script[data-page-script][src]').forEach(function (n) {
@@ -476,7 +454,6 @@
       };
     });
     addSteps(jobs.length);
-    statusEl.textContent = 'Pregătim ' + (document.title.split(' · ')[0] || 'aplicația') + '…';
     step();   // pagina curentă e deja pe ecran
     var next = 0;
     function worker() {

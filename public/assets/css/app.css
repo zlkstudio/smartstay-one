@@ -449,9 +449,8 @@ html.splash-on body { overflow: hidden; }
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
   animation: shine 1.15s linear infinite; }
 @keyframes shine { from { transform: translate3d(-60px, 0, 0); } to { transform: translate3d(260px, 0, 0); } }
-.splash-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; color: var(--text-3); }
-.splash-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.splash-pct { font-weight: 600; color: var(--blue); }
+.splash-meta { display: flex; justify-content: center; font-size: 13px; }
+.splash-pct { font-weight: 600; color: var(--blue); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
 .splash.is-done .splash-logo { animation: logo-out 0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
 .splash.is-done .splash-loader { animation: loader-out 0.25s ease-in forwards; }
@@ -480,15 +479,10 @@ html.splash-on body { overflow: hidden; }
 .nav-pill::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; }
 
 /* ── Tranziții între pagini (shell.js) ────────────────────────────────────
-   Cortină: pagina veche e fixată pe loc, cea nouă se dezvăluie peste ea (clip-path pe porțiunea
-   vizibilă), cu o linie luminoasă pe margine. */
+   Alunecare: pagina veche e fixată pe loc, cea nouă alunecă peste ea; doar transform/opacity. */
 html.is-swapping, html.is-swapping body { overflow-x: hidden; }
 .main.is-old { position: fixed; z-index: 1; margin: 0; pointer-events: none; }
-.main.is-new { position: relative; z-index: 2; background: var(--bg); }
-/* Linia luminoasă de pe marginea cortinei. */
-.swap-edge { position: fixed; left: 0; right: 0; z-index: 3; height: 2px; margin-top: -1px; pointer-events: none;
-  background: linear-gradient(90deg, transparent, #2563eb 20%, #0ea5e9 50%, #2563eb 80%, transparent);
-  box-shadow: 0 0 14px 2px rgba(37, 99, 235, 0.45); }
+.main.is-new { position: relative; z-index: 2; }
 .swap-bar { position: fixed; left: 0; right: 0; top: calc(var(--topbar-h) + var(--safe-top)); z-index: 40; height: 3px;
   pointer-events: none; overflow: hidden; opacity: 0; transition: opacity 0.2s; }
 .swap-bar.is-on { opacity: 1; }

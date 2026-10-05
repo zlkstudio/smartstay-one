@@ -16,7 +16,6 @@ $__logoDark = asset('assets/img/logo-dark.png');
     <div class="splash-loader">
       <div class="splash-track"><div class="splash-fill" data-splash-fill><span class="splash-shine"></span></div></div>
       <div class="splash-meta">
-        <span class="splash-status" data-splash-status>Pornim aplicația…</span>
         <span class="splash-pct tabular" data-splash-pct>0%</span>
       </div>
     </div>
