@@ -31,22 +31,15 @@ $installGate = $installGate ?? true;
   if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', theme);
 
-  // Splash: once per app launch (session), before the first paint. app.js hides it on load.
+<?php if (!empty($splashAllowed)): ?>
+  // Splash: once per app launch (session), before the first paint. shell.js preloads and hides it.
   try {
     if (!window.sessionStorage.getItem('one-splash')) {
       window.sessionStorage.setItem('one-splash', '1');
       document.documentElement.classList.add('splash-on');
     }
   } catch (e) {}
-
-  // Switch între module (setat de app.js la tap): direcția animației, înainte de primul cadru.
-  try {
-    var nav = JSON.parse(window.sessionStorage.getItem('one-nav') || 'null');
-    window.sessionStorage.removeItem('one-nav');
-    if (nav && Date.now() - nav.t < 8000 && nav.path === location.pathname && nav.to !== nav.from) {
-      document.documentElement.setAttribute('data-nav-in', nav.to > nav.from ? 'right' : 'left');
-    }
-  } catch (e) {}
+<?php endif; ?>
 <?php if ($installGate): ?>
   // First visit in a browser tab → install page. Never inside the installed app.
   var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -57,6 +50,7 @@ $installGate = $installGate ?? true;
 })();
 </script>
 <script src="<?= h(asset('assets/js/app.js')) ?>" defer></script>
+<script src="<?= h(asset('assets/js/shell.js')) ?>" defer></script>
 <?php foreach (($scripts ?? []) as $__script): ?>
-<script src="<?= h(asset($__script)) ?>" defer></script>
+<script src="<?= h(asset($__script)) ?>" defer data-page-script></script>
 <?php endforeach; ?>

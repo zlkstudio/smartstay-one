@@ -50,6 +50,7 @@ final class PageController
             'critical'   => $critical,
             'styles'     => ['assets/css/modules.css'],
             'scripts'    => $canReports ? ['assets/js/home.js'] : [],
+            'cacheable'  => $critical === null,
         ]);
     }
 
@@ -66,6 +67,7 @@ final class PageController
             'pageTitle' => 'Acasă',
             'active'    => 'home',
             'src'       => '/home/body' . (isset($_GET['welcome']) ? '?welcome=1' : ''),
+            'cacheable' => !isset($_GET['welcome']),
             'styles'    => ['assets/css/modules.css'],
         ]);
     }

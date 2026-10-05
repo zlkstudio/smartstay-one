@@ -101,17 +101,14 @@
   // The tab opens on a skeleton; the computed report (Previo + Analytics) arrives here.
   function loadBody(body) {
     const url = body.dataset.src;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
-    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/html' }, signal: controller.signal })
-      .then((r) => {
-        clearTimeout(timer);
-        if (new URL(r.url).pathname !== '/reports/body') {   // session expired → login page
+    // Prin cache-ul din app.js: raportul preîncărcat în splash apare instant.
+    window.ONE.fetchHtml(url)
+      .then((res) => {
+        if (res.url.split('?')[0] !== '/reports/body') {   // session expired → login page
           location.href = '/login?expired=1&next=' + encodeURIComponent(location.pathname + location.search);
           throw new Error('redirect');
         }
-        if (!r.ok) throw new Error('Eroare ' + r.status);
-        return r.text();
+        return res.html;
       })
       .then((html) => {
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -133,9 +130,8 @@
         document.dispatchEvent(new Event('one:ready'));
       })
       .catch((e) => {
-        clearTimeout(timer);
         if (e.message === 'redirect') return;
-        const msg = e.name === 'AbortError' ? 'Previo răspunde greu.' : e.message;
+        const msg = e.message;
         body.removeAttribute('aria-busy');
         const heroNow = root.querySelector('.hero .grow p');
         if (heroNow) heroNow.textContent = 'Datele din Previo nu s-au putut încărca.';

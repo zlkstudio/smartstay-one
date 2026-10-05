@@ -52,6 +52,7 @@ final class ReservationsController
             'date'      => $tab === 'tomorrow' ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d'),
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/reservations.js'],
+            'cacheable' => true,
         ]);
     }
 

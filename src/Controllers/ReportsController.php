@@ -60,6 +60,7 @@ final class ReportsController
             'page'      => null,
             'error'     => null,
             'deferred'  => true,
+            'cacheable' => true,
             'canEdit'   => Access::can($user, 'reports', 'edit'),
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/reports.js'],

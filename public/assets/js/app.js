@@ -18,35 +18,6 @@
     });
   }
 
-  // ── Splash: stays while the page loads — and, on pages with a deferred block, until its data
-  // has arrived — but never more than 3.5 s from launch. Min. 600 ms on screen.
-  var splashState = { loaded: false, ready: false, hidden: false };
-  function hideSplash() {
-    var html = document.documentElement;
-    var splash = document.getElementById('splash');
-    if (splashState.hidden || !splash || !html.classList.contains('splash-on')) return;
-    splashState.hidden = true;
-    setTimeout(function () {
-      splash.classList.add('is-done');
-      setTimeout(function () {
-        splash.classList.add('is-hidden');
-        setTimeout(function () { html.classList.remove('splash-on'); }, 260);
-      }, 200);
-    }, Math.max(0, 600 - performance.now()));
-  }
-  function checkSplash() { if (splashState.loaded && splashState.ready) hideSplash(); }
-  if (document.documentElement.classList.contains('splash-on')) {
-    // Listening from the start: a fast answer (or an error) can come before "load".
-    document.addEventListener('one:ready', function () { splashState.ready = true; checkSplash(); });
-    document.addEventListener('DOMContentLoaded', function () {
-      if (!document.querySelector('[data-defer], [data-report-body][data-src]')) splashState.ready = true;
-      checkSplash();
-    });
-    var onLoad = function () { splashState.loaded = true; checkSplash(); };
-    if (document.readyState === 'complete') onLoad(); else window.addEventListener('load', onLoad);
-    setTimeout(hideSplash, Math.max(0, 3500 - performance.now()));   // cap, counted from launch
-  }
-
   // ── Toasts ──────────────────────────────────────────────────────────────
   function toast(message, ms) {
     var box = document.getElementById('toasts');
@@ -61,14 +32,62 @@
     }, ms || 2600);
   }
 
-  // ── JSON API helper for Stage 2 modules (CSRF, timeout, no cache) ──────
+  // ── Cache în memorie (doar pe durata sesiunii, nimic pe disc) ─────────────
+  // Datele cu nume / telefoane de oaspeți nu se scriu în localStorage: rămân doar în memoria
+  // aplicației deschise. Orice modificare (POST) golește datele și fragmentele din cache.
+  var API_TTL = [
+    [/^\/api\/reservations\/list/, 120000],
+    [/^\/api\/reports\/today/, 300000],
+    [/^\/api\/housekeeping\/(checkouts|active-guests)/, 120000],
+    [/^\/api\/inventory\/occupancy/, 300000]
+  ];
+  var HTML_TTL = [
+    [/^\/reports\/body/, 300000],
+    [/^\/home\/body/, 90000]
+  ];
+  var PAGE_TTL = 600000;      // pagini fără date (shell + JS): 10 min, reîmprospătate în fundal
+  var PAGE_TTL_DYNAMIC = 15000; // pagini cu date pe server (ex. Inventar): doar cât să ajute prefetch-ul
+  var apiCache = new Map();   // path → { text, t }
+  var apiPending = new Map(); // path → Promise<text>
+  var htmlCache = new Map();  // url → { html, url, t, ttl }
+  var htmlPending = new Map();
+  var bypassUntil = 0;
+
+  function ttlFrom(list, path) {
+    for (var i = 0; i < list.length; i++) if (list[i][0].test(path)) return list[i][1];
+    return 0;
+  }
+  function isFresh(entry, ttl) {
+    return !!entry && Date.now() - entry.t < ttl && Date.now() > bypassUntil;
+  }
+  function invalidate() {
+    apiCache.clear();
+    htmlCache.forEach(function (entry, key) { if (entry.ttl !== PAGE_TTL) htmlCache.delete(key); });
+  }
+  // Butoanele de reîmprospătare cer mereu date noi.
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-refresh], [data-report-refresh], [data-body-retry]')) bypassUntil = Date.now() + 2500;
+  }, true);
+
+  // ── JSON API helper (CSRF, timeout, cache pentru citiri) ────────────────
   var csrf = null;
   function api(path, options) {
     options = options || {};
+    var method = (options.method || 'GET').toUpperCase();
+    var ttl = method === 'GET' ? ttlFrom(API_TTL, path.split('?')[0]) : 0;
+    if (method !== 'GET') invalidate();
+
+    if (ttl) {
+      var hit = apiCache.get(path);
+      if (isFresh(hit, ttl)) return Promise.resolve(JSON.parse(hit.text));
+      if (apiPending.has(path) && Date.now() > bypassUntil) {
+        return apiPending.get(path).then(function (text) { return JSON.parse(text); });
+      }
+    }
+
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); }, options.timeout || 15000);
     var headers = { 'Accept': 'application/json' };
-    var method = (options.method || 'GET').toUpperCase();
     var ready = Promise.resolve();
 
     if (method !== 'GET') {
@@ -78,7 +97,7 @@
         .then(function (d) { csrf = d.csrf || null; });
     }
 
-    return ready.then(function () {
+    var request = ready.then(function () {
       if (csrf) headers['X-CSRF-Token'] = csrf;
       return fetch(path, {
         method: method,
@@ -94,17 +113,61 @@
         location.href = '/login?expired=1&next=' + encodeURIComponent(location.pathname);
         throw new Error('Sesiune expirată');
       }
-      return response.json().then(function (data) {
+      return response.text().then(function (text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error('Eroare ' + response.status); }
         if (!response.ok || data.ok === false) throw new Error(data.error || 'Eroare ' + response.status);
-        return data;
+        if (ttl) apiCache.set(path, { text: text, t: Date.now() });
+        return text;
       });
     }, function (error) {
       clearTimeout(timer);
       throw error.name === 'AbortError' ? new Error('Serverul nu răspunde. Verifică conexiunea.') : error;
     });
+
+    if (ttl) {
+      apiPending.set(path, request);
+      var done = function () { if (apiPending.get(path) === request) apiPending.delete(path); };
+      request.then(done, done);
+    }
+    return request.then(function (text) { return JSON.parse(text); });
   }
 
-  window.ONE = { toast: toast, api: api };
+  // HTML (pagini întregi și fragmente amânate) cu același cache. Rezolvă { html, url } — url-ul
+  // final, după redirect (ex. /login când a expirat sesiunea).
+  function fetchHtml(url, opts) {
+    opts = opts || {};
+    var key = new URL(url, location.href).pathname + new URL(url, location.href).search;
+    var hit = htmlCache.get(key);
+    if (!opts.force && hit && isFresh(hit, hit.ttl)) return Promise.resolve({ html: hit.html, url: hit.url, cached: true });
+    if (!opts.force && htmlPending.has(key) && Date.now() > bypassUntil) return htmlPending.get(key);
+
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, opts.timeout || 60000);
+    var request = fetch(key, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }, signal: controller.signal })
+      .then(function (r) {
+        clearTimeout(timer);
+        return r.text().then(function (html) {
+          if (!r.ok) { var err = new Error('Eroare ' + r.status); err.status = r.status; throw err; }
+          var finalUrl = new URL(r.url);
+          var path = finalUrl.pathname;
+          var ttl = ttlFrom(HTML_TTL, path) ||
+            (html.indexOf('data-cache="1"') !== -1 ? PAGE_TTL : PAGE_TTL_DYNAMIC);
+          var result = { html: html, url: finalUrl.pathname + finalUrl.search, cached: false };
+          if (finalUrl.pathname + finalUrl.search === key) htmlCache.set(key, { html: html, url: result.url, t: Date.now(), ttl: ttl });
+          return result;
+        });
+      }, function (error) {
+        clearTimeout(timer);
+        throw error.name === 'AbortError' ? new Error('Serverul răspunde greu. Încearcă din nou.') : error;
+      });
+    htmlPending.set(key, request);
+    var done = function () { if (htmlPending.get(key) === request) htmlPending.delete(key); };
+    request.then(done, done);
+    return request;
+  }
+
+  window.ONE = { toast: toast, api: api, fetchHtml: fetchHtml, invalidate: invalidate, pageInit: pageInit };
 
   // ── Theme ───────────────────────────────────────────────────────────────
   function syncThemeColor() {
@@ -195,80 +258,39 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     syncThemeColor();
+    pageInit(document);
+  });
 
+  // Rulează la prima încărcare și după fiecare schimbare de pagină fără reîncărcare (shell.js).
+  function pageInit(root) {
+    root = root || document;
     var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     if (standalone) {
       var hide = document.querySelectorAll('[data-hide-standalone]');
       for (var i = 0; i < hide.length; i++) hide[i].hidden = true;
     }
-
     initUserForm();
     initUserList();
-    initDeferred();
-    initBottomNav();
-  });
-
-  // ── Bara de jos: tabul apăsat devine activ imediat, ecranul curent se estompează, iar
-  // pagina următoare află direcția (head.php → html[data-nav-in]). Fără JS de animație.
-  function initBottomNav() {
-    var nav = document.querySelector('.bottom-nav');
-    if (!nav) return;
-    var items = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
-    var main = document.getElementById('main');
-    var home = -1;
-    for (var i = 0; i < items.length; i++) if (items[i].classList.contains('is-active')) home = i;
-
-    function setActive(index) {
-      for (var j = 0; j < items.length; j++) {
-        items[j].classList.toggle('is-active', j === index);
-        if (j === index) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
-      }
-    }
-
-    nav.addEventListener('click', function (event) {
-      var item = event.target.closest('.nav-item');
-      if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
-      var to = items.indexOf(item);
-      if (to === home) return;
-      setActive(to);
-      if (main) main.classList.add('is-leaving');
-      try {
-        sessionStorage.setItem('one-nav', JSON.stringify({
-          from: home, to: to, path: new URL(item.href, location.href).pathname, t: Date.now()
-        }));
-      } catch (e) { /* private mode: navigare simplă */ }
-    });
-
-    // Înapoi din cache (iOS): pagina revine exact cum era înainte de tap.
-    window.addEventListener('pageshow', function (event) {
-      if (!event.persisted) return;
-      setActive(home);
-      if (main) main.classList.remove('is-leaving');
-      document.documentElement.removeAttribute('data-nav-in');
-    });
+    initDeferred(root);
   }
 
   // ── Deferred blocks: the page is sent at once with a skeleton; the slow part
   // (Previo, calcule) comes as an HTML fragment and replaces it: <div data-defer="/home/body">.
-  function initDeferred() {
-    var blocks = document.querySelectorAll('[data-defer]');
+  function initDeferred(root) {
+    var blocks = (root || document).querySelectorAll('[data-defer]');
     for (var i = 0; i < blocks.length; i++) loadDeferred(blocks[i]);
   }
 
   function loadDeferred(block) {
     var url = block.getAttribute('data-defer');
     var path = url.split('?')[0];
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, 60000);
-    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }, signal: controller.signal })
-      .then(function (r) {
-        clearTimeout(timer);
-        if (new URL(r.url).pathname !== path) {   // session expired → login page
+    fetchHtml(url)
+      .then(function (res) {
+        if (res.url.split('?')[0] !== path) {   // session expired → login page
           location.href = '/login?expired=1&next=' + encodeURIComponent(location.pathname + location.search);
           throw new Error('redirect');
         }
-        if (!r.ok) throw new Error('Eroare ' + r.status);
-        return r.text();
+        return res.html;
       })
       .then(function (html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -278,7 +300,6 @@
         document.dispatchEvent(new Event('one:ready'));
       })
       .catch(function (e) {
-        clearTimeout(timer);
         if (e.message === 'redirect') return;
         var status = block.querySelector('[data-defer-status]');
         if (status) status.textContent = 'Datele nu s-au putut încărca.';
@@ -286,7 +307,8 @@
         box.className = 'stack-sm';
         box.innerHTML = '<div class="alert alert-error" role="alert"><span></span></div>' +
           '<button type="button" class="btn btn-secondary">Încearcă din nou</button>';
-        box.querySelector('span').textContent = e.name === 'AbortError' ? 'Serverul răspunde greu. Încearcă din nou.' : e.message;
+        box.querySelector('span').textContent = e.message;
+        box.querySelector('button').setAttribute('data-body-retry', '');
         box.querySelector('button').addEventListener('click', function () { location.reload(); });
         var hero = block.querySelector('.hero');
         if (hero) hero.after(box); else block.prepend(box);

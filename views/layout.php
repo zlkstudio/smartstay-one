@@ -30,7 +30,7 @@ $showNav = count($navItems) > 1;
 <!doctype html>
 <html lang="ro">
 <head>
-<?php require ONE_ROOT . '/views/partials/head.php'; ?>
+<?php $splashAllowed = true; require ONE_ROOT . '/views/partials/head.php'; ?>
 </head>
 <body data-page="<?= h($active ?? '') ?>">
 <?php require ONE_ROOT . '/views/partials/splash.php'; ?>
@@ -59,7 +59,7 @@ $showNav = count($navItems) > 1;
   </div>
 </header>
 
-<main class="main<?= $showNav ? '' : ' no-nav' ?>" id="main">
+<main class="main<?= $showNav ? '' : ' no-nav' ?>" id="main" data-cache="<?= !empty($cacheable) ? '1' : '0' ?>">
 <?= $content ?>
 </main>
 

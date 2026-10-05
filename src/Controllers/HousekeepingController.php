@@ -49,6 +49,7 @@ final class HousekeepingController
             'selfMaid'  => $isMaid ? array_key_first($maids) : null,
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/housekeeping.js'],
+            'cacheable' => true,
         ]);
     }
 
@@ -65,6 +66,7 @@ final class HousekeepingController
             'selfMaid'  => null,
             'styles'    => ['assets/css/modules.css'],
             'scripts'   => ['assets/js/housekeeping.js'],
+            'cacheable' => true,
         ]);
     }
 
