@@ -480,10 +480,15 @@ html.splash-on body { overflow: hidden; }
 .nav-pill::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; }
 
 /* ── Tranziții între pagini (shell.js) ────────────────────────────────────
-   Pagina veche e fixată pe loc, cea nouă intră peste ea; doar transform/opacity. */
+   Cortină: pagina veche e fixată pe loc, cea nouă se dezvăluie peste ea (clip-path pe porțiunea
+   vizibilă), cu o linie luminoasă pe margine. */
 html.is-swapping, html.is-swapping body { overflow-x: hidden; }
 .main.is-old { position: fixed; z-index: 1; margin: 0; pointer-events: none; }
-.main.is-new { position: relative; z-index: 2; }
+.main.is-new { position: relative; z-index: 2; background: var(--bg); }
+/* Linia luminoasă de pe marginea cortinei. */
+.swap-edge { position: fixed; left: 0; right: 0; z-index: 3; height: 2px; margin-top: -1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #2563eb 20%, #0ea5e9 50%, #2563eb 80%, transparent);
+  box-shadow: 0 0 14px 2px rgba(37, 99, 235, 0.45); }
 .swap-bar { position: fixed; left: 0; right: 0; top: calc(var(--topbar-h) + var(--safe-top)); z-index: 40; height: 3px;
   pointer-events: none; overflow: hidden; opacity: 0; transition: opacity 0.2s; }
 .swap-bar.is-on { opacity: 1; }

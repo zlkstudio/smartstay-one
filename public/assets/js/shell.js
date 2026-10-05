@@ -237,7 +237,10 @@
     // Header, titlu, tab activ.
     var oldTop = document.querySelector('.topbar');
     var newTop = doc.querySelector('.topbar');
-    if (oldTop && newTop) oldTop.replaceWith(document.importNode(newTop, true));
+    // Header-ul e identic pe majoritatea paginilor: îl înlocuim doar când diferă (altfel logo-ul ar clipi).
+    if (oldTop && newTop && oldTop.outerHTML.replace(/\s+/g, ' ') !== newTop.outerHTML.replace(/\s+/g, ' ')) {
+      oldTop.replaceWith(document.importNode(newTop, true));
+    }
     document.title = doc.title;
     document.body.setAttribute('data-page', doc.body.getAttribute('data-page') || '');
     var activeNew = doc.querySelector('.bottom-nav .nav-item.is-active');
@@ -291,31 +294,51 @@
     });
   }
 
-  var EASE_IN = 'cubic-bezier(0.22, 1, 0.36, 1)';
-  var EASE_OUT = 'cubic-bezier(0.4, 0, 0.6, 1)';
+  // Cortină: pagina nouă se dezvăluie peste cea veche (de sus în jos; la Înapoi de jos în sus),
+  // cu o linie luminoasă pe margine. Se decupează doar porțiunea vizibilă pe ecran, apoi clip-ul
+  // dispare. Pagina veche coboară puțin și se estompează în spate.
+  var CURTAIN = 'cubic-bezier(0.65, 0, 0.35, 1)';
   function animate(oldMain, newMain, kind) {
-    var a, b;
     if (reduced()) {
-      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
-      b = newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
-    } else if (kind === 'right' || kind === 'left') {
-      var dir = kind === 'right' ? 1 : -1;
-      a = oldMain.animate([
-        { transform: 'translate3d(0,0,0) scale(1)', opacity: 1 },
-        { transform: 'translate3d(' + (-dir * 22) + '%,0,0) scale(0.96)', opacity: 0 }
-      ], { duration: 340, easing: EASE_OUT, fill: 'forwards' });
-      b = newMain.animate([
-        { transform: 'translate3d(' + (dir * 45) + '%,0,0)', opacity: 0 },
-        { transform: 'translate3d(0,0,0)', opacity: 1 }
-      ], { duration: 440, easing: EASE_IN });
-    } else {
-      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE_OUT, fill: 'forwards' });
-      b = newMain.animate([
-        { transform: 'translate3d(0,14px,0)', opacity: 0 },
-        { transform: 'translate3d(0,0,0)', opacity: 1 }
-      ], { duration: 320, easing: EASE_IN });
+      var fa = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+      var fb = newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+      return Promise.all([fa.finished, fb.finished]).catch(function () {});
     }
-    return Promise.all([a.finished, b.finished]).catch(function () {});
+    var up = kind === 'left';
+    var duration = kind === 'fade' ? 340 : 440;
+    var vh = window.innerHeight;
+    var rect = newMain.getBoundingClientRect();
+    var top = document.querySelector('.topbar');
+    var visTop = Math.max(rect.top, top ? top.getBoundingClientRect().bottom : 0);
+    var start = Math.max(0, visTop - rect.top);                 // în coordonatele paginii noi
+    var end = vh - rect.top;                                    // marginea de jos a ecranului, nu a paginii
+    // Marginea de jos e relativă la înălțimea paginii (calc(100% - y)): dacă datele sosesc în timpul
+    // cortinei și pagina se lungește, decupajul rămâne corect.
+    var clipAt = function (y) {
+      return up ? 'inset(' + y.toFixed(1) + 'px 0px calc(100% - ' + end.toFixed(1) + 'px) 0px)'
+                : 'inset(' + start.toFixed(1) + 'px 0px calc(100% - ' + y.toFixed(1) + 'px) 0px)';
+    };
+    var from = up ? end : start;
+    var to = up ? start : end;
+
+    var b = newMain.animate([{ clipPath: clipAt(from) }, { clipPath: clipAt(to) }], { duration: duration, easing: CURTAIN });
+    var a = oldMain.animate([
+      { transform: 'translate3d(0,0,0)', opacity: 1 },
+      { transform: 'translate3d(0,' + (up ? -18 : 18) + 'px,0)', opacity: 0.35, offset: 0.85 },
+      { transform: 'translate3d(0,' + (up ? -20 : 20) + 'px,0)', opacity: 0 }
+    ], { duration: duration, easing: CURTAIN, fill: 'forwards' });
+
+    var edge = document.createElement('div');
+    edge.className = 'swap-edge';
+    edge.style.top = rect.top + 'px';
+    document.body.appendChild(edge);
+    var c = edge.animate([
+      { transform: 'translate3d(0,' + from.toFixed(1) + 'px,0)', opacity: 1 },
+      { transform: 'translate3d(0,' + to.toFixed(1) + 'px,0)', opacity: 1, offset: 0.9 },
+      { transform: 'translate3d(0,' + to.toFixed(1) + 'px,0)', opacity: 0 }
+    ], { duration: duration, easing: CURTAIN, fill: 'forwards' });
+
+    return Promise.all([a.finished, b.finished, c.finished]).catch(function () {}).then(function () { edge.remove(); });
   }
 
   // Înapoi / înainte.
