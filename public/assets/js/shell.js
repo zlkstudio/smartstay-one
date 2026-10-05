@@ -294,34 +294,43 @@
     });
   }
 
-  // Alunecare (aleasă de Romeo în playground): între module pagina nouă alunecă din direcția tabului
-  // peste cea veche, care se retrage și se estompează; în același modul fade cu ridicare;
-  // Înapoi inversează direcția. Doar transform/opacity.
+  // Push iOS (ales în playground): ca în Setări pe iPhone. Între module pagina nouă intră complet
+  // din direcția tabului, cea veche se retrage 30% și se întunecă ușor; Înapoi inversează direcția.
+  // În același modul (perioade, Astăzi/Mâine) rămâne un fade scurt cu ridicare. Doar transform/opacity.
   var EASE_IN = 'cubic-bezier(0.22, 1, 0.36, 1)';
   var EASE_OUT = 'cubic-bezier(0.4, 0, 0.6, 1)';
   function animate(oldMain, newMain, kind) {
-    var a, b;
+    var anims = [];
+    var scrim = null;
     if (reduced()) {
-      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
-      b = newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+      anims.push(oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }));
+      anims.push(newMain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 }));
     } else if (kind === 'right' || kind === 'left') {
       var dir = kind === 'right' ? 1 : -1;
-      a = oldMain.animate([
-        { transform: 'translate3d(0,0,0) scale(1)', opacity: 1 },
-        { transform: 'translate3d(' + (-dir * 22) + '%,0,0) scale(0.96)', opacity: 0 }
-      ], { duration: 340, easing: EASE_OUT, fill: 'forwards' });
-      b = newMain.animate([
-        { transform: 'translate3d(' + (dir * 45) + '%,0,0)', opacity: 0 },
-        { transform: 'translate3d(0,0,0)', opacity: 1 }
-      ], { duration: 440, easing: EASE_IN });
+      newMain.classList.add('is-pushing');
+      scrim = document.createElement('div');
+      scrim.className = 'swap-scrim';
+      oldMain.after(scrim);
+      anims.push(newMain.animate([
+        { transform: 'translate3d(' + (dir * 100) + '%,0,0)' },
+        { transform: 'translate3d(0,0,0)' }
+      ], { duration: 420, easing: EASE_IN }));
+      anims.push(oldMain.animate([
+        { transform: 'translate3d(0,0,0)' },
+        { transform: 'translate3d(' + (-dir * 30) + '%,0,0)' }
+      ], { duration: 420, easing: EASE_IN, fill: 'forwards' }));
+      anims.push(scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: EASE_IN, fill: 'forwards' }));
     } else {
-      a = oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE_OUT, fill: 'forwards' });
-      b = newMain.animate([
+      anims.push(oldMain.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE_OUT, fill: 'forwards' }));
+      anims.push(newMain.animate([
         { transform: 'translate3d(0,14px,0)', opacity: 0 },
         { transform: 'translate3d(0,0,0)', opacity: 1 }
-      ], { duration: 320, easing: EASE_IN });
+      ], { duration: 320, easing: EASE_IN }));
     }
-    return Promise.all([a.finished, b.finished]).catch(function () {});
+    return Promise.all(anims.map(function (a) { return a.finished; })).catch(function () {}).then(function () {
+      if (scrim) scrim.remove();
+      newMain.classList.remove('is-pushing');
+    });
   }
 
   // Înapoi / înainte.

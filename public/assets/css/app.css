@@ -479,8 +479,13 @@ html.splash-on body { overflow: hidden; }
 .nav-pill::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; }
 
 /* ── Tranziții între pagini (shell.js) ────────────────────────────────────
-   Alunecare: pagina veche e fixată pe loc, cea nouă alunecă peste ea; doar transform/opacity. */
-html.is-swapping, html.is-swapping body { overflow-x: hidden; }
+   Push iOS: pagina veche e fixată pe loc; cea nouă (opacă, cu umbră pe margine) intră peste ea,
+   iar un voal întunecă ușor pagina veche. Doar transform/opacity. */
+html.is-swapping, html.is-swapping body { overflow-x: hidden; overflow-x: clip; }
+.main.is-pushing { background: var(--bg); box-shadow: 0 0 28px rgba(15, 23, 42, 0.14); }
+.swap-scrim { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: rgba(15, 23, 42, 0.16); opacity: 0; }
+:root[data-theme="dark"] .swap-scrim { background: rgba(0, 0, 0, 0.4); }
+:root[data-theme="dark"] .main.is-pushing { box-shadow: 0 0 28px rgba(0, 0, 0, 0.5); }
 .main.is-old { position: fixed; z-index: 1; margin: 0; pointer-events: none; }
 .main.is-new { position: relative; z-index: 2; }
 .swap-bar { position: fixed; left: 0; right: 0; top: calc(var(--topbar-h) + var(--safe-top)); z-index: 40; height: 3px;
