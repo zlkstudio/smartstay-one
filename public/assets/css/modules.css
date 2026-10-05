@@ -173,7 +173,7 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 
 /* ── Etapa 3: shared accents ─────────────────────────────────────────── */
 .nav-item[data-module="reports"].is-active { color: var(--teal); }
-.nav-item[data-module="reports"].is-active .nav-pill { background: var(--teal-soft); }
+.nav-item[data-module="reports"].is-active .nav-pill::before { background: var(--teal-soft); }
 .chips-indigo .chip.is-active { background: var(--indigo); border-color: var(--indigo); }
 .chips-teal .chip.is-active { background: var(--teal); border-color: var(--teal); color: #fff; }
 .tabs-teal .tab.is-active { color: var(--teal); }
@@ -505,3 +505,53 @@ button.bar:active > span { opacity: 0.7; }
 .stat-skel { gap: 10px; }
 .stat-skel .skeleton { display: block; }
 [data-report-body][aria-busy] .card { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Rapoarte: intrarea graficelor (1.4.8) ─────────────────────────────────
+   O singură dată, când sosește raportul. transform/opacity, plus stroke-dashoffset pe linii.
+   Pe iOS 16.4+ donut-ul se umple circular; pe versiuni mai vechi apare direct. */
+.bar > span { transform-origin: 50% 100%; animation: grow-y 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 30) * 12ms); }
+.wk-col > span { transform-origin: 50% 100%; animation: grow-y 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.wk:nth-child(2) .wk-col > span { animation-delay: 40ms; }
+.wk:nth-child(3) .wk-col > span { animation-delay: 80ms; }
+.wk:nth-child(4) .wk-col > span { animation-delay: 120ms; }
+.wk:nth-child(5) .wk-col > span { animation-delay: 160ms; }
+.wk:nth-child(6) .wk-col > span { animation-delay: 200ms; }
+.wk:nth-child(7) .wk-col > span { animation-delay: 240ms; }
+.trend-col { transform-box: fill-box; transform-origin: 50% 100%; animation: grow-y 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes grow-y { from { transform: scaleY(0); } }
+
+.hbar-track > span, .occ-track > span { transform-origin: 0 50%; animation: grow-x 0.5s cubic-bezier(0, 0, 0.2, 1) backwards; }
+.hbars li:nth-child(2) .hbar-track > span { animation-delay: 50ms; }
+.hbars li:nth-child(3) .hbar-track > span { animation-delay: 100ms; }
+.hbars li:nth-child(4) .hbar-track > span { animation-delay: 150ms; }
+.hbars li:nth-child(5) .hbar-track > span { animation-delay: 200ms; }
+.hbars li:nth-child(n+6) .hbar-track > span { animation-delay: 250ms; }
+.mix-bar { animation: grow-x 0.5s cubic-bezier(0, 0, 0.2, 1) backwards; transform-origin: 0 50%; }
+@keyframes grow-x { from { transform: scaleX(0); } }
+
+.trend-line { stroke-dasharray: 1; animation: draw-line 0.8s cubic-bezier(0.33, 1, 0.68, 1) 0.15s backwards; }
+@keyframes draw-line { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.trend-dot { animation: fade-in 0.25s ease-out 0.7s backwards; }
+@keyframes fade-in { from { opacity: 0; } }
+
+/* Donut (canale): inelul e un strat separat, ca să se poată umple fără să acopere cifra din mijloc. */
+@property --sweep { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
+[data-channels] .donut { background: var(--surface-2); isolation: isolate; }
+[data-channels] .donut::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%;
+  background: var(--ring, var(--surface-2));
+  -webkit-mask: conic-gradient(#000 var(--sweep), transparent 0); mask: conic-gradient(#000 var(--sweep), transparent 0);
+  animation: donut-sweep 0.8s cubic-bezier(0.33, 1, 0.68, 1) 0.1s backwards; }
+@keyframes donut-sweep { from { --sweep: 0%; } }
+
+/* Tap pe bară: celelalte se estompează, bara aleasă crește ușor. */
+.bar > span { transition: opacity 0.15s ease-out; }
+[data-bars]:has(.is-selected) .bar:not(.is-selected) > span { opacity: 0.45; }
+.bar.is-selected > span { box-shadow: none; transform: scaleX(1.12); transition: opacity 0.15s ease-out, transform 0.2s cubic-bezier(0.34, 1.5, 0.64, 1); }
+.chart-tip { transition: opacity 0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar > span, .wk-col > span, .trend-col, .hbar-track > span, .occ-track > span, .mix-bar,
+  .trend-line, .trend-dot, [data-channels] .donut::before { animation: none; }
+  .bar.is-selected > span { transform: none; }
+}

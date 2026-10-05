@@ -176,10 +176,10 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
         <p class="muted">Nu am date Previo pentru intervalul ăsta.</p>
       <?php else: ?>
         <div class="bars" data-bars role="img" aria-label="Ocupare, <?= h($period->label) ?>">
-          <?php foreach ($bars as $b):
+          <?php foreach ($bars as $bi => $b):
             $tip = $when($b) . ' · ' . $b['occupied'] . '/' . $b['total'] . ' nopți · ' . $pct($b['pct'], 0)
                 . ' · ADR ' . $lei($b['adr'], 1) . ' · RevPAR ' . $lei($b['revpar'], 1) . ' · ' . $lei($b['revenue']); ?>
-            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
+            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" style="--i:<?= (int) $bi ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
               <span style="height:<?= max(2, (int) round($b['pct'])) ?>%"></span>
             </button>
           <?php endforeach; ?>
@@ -200,9 +200,9 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
       </div>
       <?php if ($bars): ?>
         <div class="bars bars-blue" data-bars role="img" aria-label="Venit, <?= h($period->label) ?>">
-          <?php foreach ($bars as $b):
+          <?php foreach ($bars as $bi => $b):
             $tip = $when($b) . ' · venit ' . $lei($b['revenue']) . ' · ADR ' . $lei($b['adr'], 1) . ' · ' . $b['occupied'] . ' nopți'; ?>
-            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
+            <button type="button" class="bar<?= $b['from'] > $page['today'] ? ' is-future' : '' ?><?= $b['from'] <= $page['today'] && $b['to'] >= $page['today'] ? ' is-today' : '' ?>" style="--i:<?= (int) $bi ?>" data-tip="<?= h($tip) ?>" title="<?= h($tip) ?>" aria-label="<?= h($tip) ?>">
               <span style="height:<?= max(2, (int) round($b['revenue'] * 100 / $maxRevBar)) ?>%"></span>
             </button>
           <?php endforeach; ?>
@@ -406,7 +406,7 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
             </rect>
             <text class="trend-axis" x="<?= round($xAt($i), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
           <?php endforeach; ?>
-          <polyline class="trend-line" points="<?= h($line('occupancy', 100.0)) ?>"/>
+          <polyline pathLength="1" class="trend-line" points="<?= h($line('occupancy', 100.0)) ?>"/>
         </svg>
       </div>
       <div class="card stack-sm">
@@ -415,8 +415,8 @@ $qs = static fn(string $key): string => '/reports' . ($key === 'today' ? '' : '?
           <?php foreach ($activeMonths as $i => $m): ?>
             <text class="trend-axis" x="<?= round($xAt($i), 1) ?>" y="<?= $H - 5 ?>" text-anchor="middle"><?= h(Period::monthShort($m['month'])) ?></text>
           <?php endforeach; ?>
-          <polyline class="trend-line" points="<?= h($line('adr', $maxMoney)) ?>"/>
-          <polyline class="trend-line trend-line-teal" points="<?= h($line('revpar', $maxMoney)) ?>"/>
+          <polyline pathLength="1" class="trend-line" points="<?= h($line('adr', $maxMoney)) ?>"/>
+          <polyline pathLength="1" class="trend-line trend-line-teal" points="<?= h($line('revpar', $maxMoney)) ?>"/>
           <?php foreach ($activeMonths as $i => $m): ?>
             <circle class="trend-dot" cx="<?= round($xAt($i), 1) ?>" cy="<?= round($H - 20 - (((float) ($m['kpis']['adr'] ?? 0)) / $maxMoney) * ($H - 34), 1) ?>" r="2.6"><title><?= h(Period::monthShort($m['month']) . ': ADR ' . $lei($m['kpis']['adr'], 1) . ' · RevPAR ' . $lei($m['kpis']['revpar'], 1)) ?></title></circle>
           <?php endforeach; ?>

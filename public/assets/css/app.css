@@ -153,12 +153,12 @@ p { margin: 0; }
 }
 .nav-item .icon { width: 24px; height: 24px; }
 .nav-item.is-active { color: var(--blue); }
-.nav-item.is-active .nav-pill { background: var(--blue-soft); }
-.nav-pill { display: grid; place-items: center; width: 52px; height: 30px; border-radius: var(--r-pill); transition: background 0.2s; }
+.nav-item.is-active .nav-pill::before { background: var(--blue-soft); }
+.nav-pill { position: relative; isolation: isolate; display: grid; place-items: center; width: 52px; height: 30px; border-radius: var(--r-pill); }
 .nav-item[data-module="housekeeping"].is-active { color: var(--violet); }
-.nav-item[data-module="housekeeping"].is-active .nav-pill { background: var(--violet-soft); }
+.nav-item[data-module="housekeeping"].is-active .nav-pill::before { background: var(--violet-soft); }
 .nav-item[data-module="inventory"].is-active { color: var(--indigo); }
-.nav-item[data-module="inventory"].is-active .nav-pill { background: var(--indigo-soft); }
+.nav-item[data-module="inventory"].is-active .nav-pill::before { background: var(--indigo-soft); }
 
 @media (max-width: 899px) { .desktop-only { display: none !important; } }
 
@@ -393,7 +393,6 @@ button.list-item { width: 100%; background: none; border-left: 0; border-right: 
 .nav-item { -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: color 0.15s; }
 .nav-item .icon { transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .nav-item:active .icon { transform: scale(0.88); }
-.nav-item.is-active .icon { transform: translateY(-1px); }
 
 /* Liste și cifre: o singură intrare, la încărcare (primele 4 elemente, 30 ms între ele). */
 @keyframes one-rise { from { opacity: 0; transform: translateY(6px); } }
@@ -426,3 +425,30 @@ html.splash-on body { overflow: hidden; }
 .splash .splash-logo.show-dark { display: none; }
 :root[data-theme="dark"] .splash .splash-logo.show-light { display: none; }
 :root[data-theme="dark"] .splash .splash-logo.show-dark { display: block; }
+
+/* ── Animații 1.4.8: navigare între module, bara de jos, Rapoarte ──────────
+   Tot doar transform/opacity (plus un stroke pe graficul de linie), o singură dată per încărcare.
+   Nimic nu rulează în fundal; „Reducere mișcare” le oprește complet (blocul de la final). */
+
+/* Bara de jos: fundalul tabului activ e un strat separat care „crește” din centru. */
+.nav-pill::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  opacity: 0; transform: scaleX(0.55);
+  transition: transform 0.26s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.16s ease-out, background-color 0.16s; }
+.nav-item.is-active .nav-pill::before { opacity: 1; transform: none; }
+.nav-item.is-active .icon { transform: translateY(-1px) scale(1.06); transition-timing-function: cubic-bezier(0.34, 1.5, 0.64, 1); }
+html[data-nav-in] .nav-item.is-active .nav-pill::before { animation: nav-pill-in 0.3s cubic-bezier(0.34, 1.4, 0.64, 1) backwards; }
+@keyframes nav-pill-in { from { opacity: 0; transform: scaleX(0.55); } }
+
+/* Schimbarea modulului: conținutul intră din direcția tabului (bara și header-ul stau pe loc). */
+html[data-nav-in="right"] .main { animation: module-in-right 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+html[data-nav-in="left"] .main  { animation: module-in-left 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes module-in-right { from { opacity: 0; transform: translate3d(18px, 0, 0); } }
+@keyframes module-in-left  { from { opacity: 0; transform: translate3d(-18px, 0, 0); } }
+/* La tap, ecranul curent se estompează cât se încarcă următorul. */
+.main.is-leaving { opacity: 0.55; transition: opacity 0.14s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-nav-in] .main, html[data-nav-in] .nav-item.is-active .nav-pill::before,
+  .is-entering > .card, [data-reports] .kpi, [data-reports] .stat { animation: none; }
+  .nav-pill::before, .nav-item .icon { transition: none; }
+  .nav-item.is-active .icon { transform: none; }
+}

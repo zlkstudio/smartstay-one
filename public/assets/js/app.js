@@ -205,7 +205,48 @@
     initUserForm();
     initUserList();
     initDeferred();
+    initBottomNav();
   });
+
+  // ── Bara de jos: tabul apăsat devine activ imediat, ecranul curent se estompează, iar
+  // pagina următoare află direcția (head.php → html[data-nav-in]). Fără JS de animație.
+  function initBottomNav() {
+    var nav = document.querySelector('.bottom-nav');
+    if (!nav) return;
+    var items = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+    var main = document.getElementById('main');
+    var home = -1;
+    for (var i = 0; i < items.length; i++) if (items[i].classList.contains('is-active')) home = i;
+
+    function setActive(index) {
+      for (var j = 0; j < items.length; j++) {
+        items[j].classList.toggle('is-active', j === index);
+        if (j === index) items[j].setAttribute('aria-current', 'page'); else items[j].removeAttribute('aria-current');
+      }
+    }
+
+    nav.addEventListener('click', function (event) {
+      var item = event.target.closest('.nav-item');
+      if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+      var to = items.indexOf(item);
+      if (to === home) return;
+      setActive(to);
+      if (main) main.classList.add('is-leaving');
+      try {
+        sessionStorage.setItem('one-nav', JSON.stringify({
+          from: home, to: to, path: new URL(item.href, location.href).pathname, t: Date.now()
+        }));
+      } catch (e) { /* private mode: navigare simplă */ }
+    });
+
+    // Înapoi din cache (iOS): pagina revine exact cum era înainte de tap.
+    window.addEventListener('pageshow', function (event) {
+      if (!event.persisted) return;
+      setActive(home);
+      if (main) main.classList.remove('is-leaving');
+      document.documentElement.removeAttribute('data-nav-in');
+    });
+  }
 
   // ── Deferred blocks: the page is sent at once with a skeleton; the slow part
   // (Previo, calcule) comes as an HTML fragment and replaces it: <div data-defer="/home/body">.

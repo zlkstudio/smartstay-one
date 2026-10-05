@@ -64,6 +64,38 @@
     initBars();
     initChannels();
     initSheet();
+    countUp();
+  }
+
+  // Cifrele mari numără de la 0 la valoare (600 ms), în formatul de pe server: „1.234,5 Lei”, „72,4%”.
+  // Doar indicatorii de sus (max. 8 numere), un singur requestAnimationFrame pentru toate.
+  function countUp() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const jobs = [];
+    root.querySelectorAll('.kpi-grid .kpi-value, .stat-grid .stat-value').forEach((el) => {
+      const node = Array.from(el.childNodes).find((n) => n.nodeType === 3 && n.nodeValue.trim());
+      const m = node && node.nodeValue.match(/^(\D*?)(\d[\d.]*(?:,\d+)?)([\s\S]*)$/);
+      if (!m) return;
+      const dec = m[2].includes(',') ? m[2].split(',')[1].length : 0;
+      const value = parseFloat(m[2].replace(/\./g, '').replace(',', '.'));
+      if (!(value > 0)) return;
+      jobs.push({ node, final: node.nodeValue, pre: m[1], post: m[3], dec, value, group: m[2].includes('.') || value < 1000 });
+    });
+    if (!jobs.length) return;
+    const fmt = (v, dec, group) => {
+      const parts = v.toFixed(dec).split('.');
+      if (group) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return parts.join(',');
+    };
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / 600);
+      const e = 1 - Math.pow(1 - t, 3);
+      jobs.forEach((j) => { j.node.nodeValue = t >= 1 ? j.final : j.pre + fmt(j.value * e, j.dec, j.group) + j.post; });
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    jobs.forEach((j) => { j.node.nodeValue = j.pre + fmt(0, j.dec, j.group) + j.post; });
+    requestAnimationFrame(tick);
   }
 
   // The tab opens on a skeleton; the computed report (Previo + Analytics) arrives here.
@@ -165,7 +197,7 @@
         if (share > 0) stops.push(`${li.dataset.color} ${acc.toFixed(2)}% ${(acc + share).toFixed(2)}%`);
         acc += share;
       });
-      donut.style.background = stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--surface-2)';
+      donut.style.setProperty('--ring', stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--surface-2)');
       box.querySelector('[data-donut-value]').textContent = LEI.format(total);
       box.querySelector('[data-donut-unit]').textContent = UNITS[metric];
     };

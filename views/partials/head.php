@@ -38,6 +38,15 @@ $installGate = $installGate ?? true;
       document.documentElement.classList.add('splash-on');
     }
   } catch (e) {}
+
+  // Switch între module (setat de app.js la tap): direcția animației, înainte de primul cadru.
+  try {
+    var nav = JSON.parse(window.sessionStorage.getItem('one-nav') || 'null');
+    window.sessionStorage.removeItem('one-nav');
+    if (nav && Date.now() - nav.t < 8000 && nav.path === location.pathname && nav.to !== nav.from) {
+      document.documentElement.setAttribute('data-nav-in', nav.to > nav.from ? 'right' : 'left');
+    }
+  } catch (e) {}
 <?php if ($installGate): ?>
   // First visit in a browser tab → install page. Never inside the installed app.
   var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
