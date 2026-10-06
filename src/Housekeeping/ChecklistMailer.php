@@ -30,7 +30,7 @@ final class ChecklistMailer
         $text = "Cleaning Report for Apartment $apartment\n"
             . "Maid: $maid\n"
             . "Date: $date\n"
-            . "Submission: #$submission of " . Checklist::MAX_SUBMISSIONS . "\n";
+            . "Submission: #$submission\n";
         if ($submittedBy !== $maid) {
             $text .= "Trimis din SmartStay ONE de: $submittedBy\n";
         }

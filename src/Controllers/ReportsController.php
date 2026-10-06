@@ -312,12 +312,15 @@ final class ReportsController
             json_response(['ok' => false, 'error' => 'Tip de curățenie invalid.'], 422);
         }
 
-        $created = CleaningRepository::recordCleaning((string) $maid, $apartment, $date, $type);
+        // again = confirmed in the UI: several check-outs in the same apartment on the same day.
+        $again = !empty($in['again']);
+        $created = CleaningRepository::recordCleaning((string) $maid, $apartment, $date, $type, null, $again);
         if (!$created) {
-            json_response(['ok' => false, 'error' => "Există deja o curățenie $apartment pentru $maid în acea zi."], 409);
+            json_response(['ok' => false, 'code' => 'duplicate',
+                'error' => "Există deja o curățenie $apartment pentru $maid în acea zi."], 409);
         }
         Audit::log((int) $user['id'], 'report.cleaning_add', 'cleaning', $apartment, [
-            'maid' => $maid, 'date' => $date, 'type' => $type,
+            'maid' => $maid, 'date' => $date, 'type' => $type, 'again' => $again,
         ]);
         json_response(['ok' => true, 'message' => "Curățenie adăugată: $apartment · $maid."]);
     }

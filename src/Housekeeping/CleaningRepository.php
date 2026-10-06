@@ -100,23 +100,37 @@ final class CleaningRepository
 
     /**
      * Deduplicated on (maid, apartment, date, type): a check-out and an intermediate on the same day both count.
+     * $again = true writes one more line even when one exists (two check-outs in the same apartment on the same day).
      * @return bool true when a new record was written, false when it already existed
      */
-    public static function recordCleaning(string $maid, string $apartment, string $date, string $type = 'checkout', ?string $reservationId = null): bool
+    public static function recordCleaning(string $maid, string $apartment, string $date, string $type = 'checkout', ?string $reservationId = null, bool $again = false): bool
     {
         $pdo = self::db();
-        $exists = $pdo->prepare(
-            'SELECT id FROM cleaning_records WHERE maid_name = ? AND apartment_number = ? AND cleaning_date = ? AND cleaning_type = ?'
-        );
-        $exists->execute([$maid, $apartment, $date, $type]);
-        if ($exists->fetchColumn() !== false) {
-            return false;
+        if (!$again) {
+            $exists = $pdo->prepare(
+                'SELECT id FROM cleaning_records WHERE maid_name = ? AND apartment_number = ? AND cleaning_date = ? AND cleaning_type = ?'
+            );
+            $exists->execute([$maid, $apartment, $date, $type]);
+            if ($exists->fetchColumn() !== false) {
+                return false;
+            }
         }
         $pdo->prepare(
             "INSERT INTO cleaning_records (maid_name, apartment_number, cleaning_date, cleaning_type, reservation_id, status)
              VALUES (?, ?, ?, ?, ?, 'completed')"
         )->execute([$maid, $apartment, $date, $type, $reservationId]);
         return true;
+    }
+
+    /** Paid check-out cleanings for an apartment on a day, any maid (one per check-out). */
+    public static function checkoutRecordCount(string $apartment, string $date): int
+    {
+        $stmt = self::db()->prepare(
+            "SELECT COUNT(*) FROM cleaning_records
+             WHERE apartment_number = ? AND cleaning_date = ? AND COALESCE(NULLIF(cleaning_type, ''), 'checkout') = 'checkout'"
+        );
+        $stmt->execute([$apartment, $date]);
+        return (int) $stmt->fetchColumn();
     }
 
     /** One payment line (for the report's delete action). @return array<string,mixed>|null */
@@ -159,7 +173,7 @@ final class CleaningRepository
         )->execute([$maid, $apartment, $date]);
     }
 
-    // ── Checklist submissions (max 2 per apartment + day) ────────────────
+    // ── Checklist submissions (max 2 per check-out: cleaning + verification) ──
 
     /** @param list<string> $apartments @return array<string,int> */
     public static function submissionCounts(array $apartments, string $date): array
@@ -182,12 +196,13 @@ final class CleaningRepository
 
     /**
      * Registers a submission. The UNIQUE(apartment, date, submission_number) key makes the
-     * limit atomic. @return int 1 or 2 @throws RuntimeException code 409 when the limit is reached
+     * limit atomic. $max = Checklist::maxFor(check-outs that day).
+     * @return int 1..$max @throws RuntimeException code 409 when the limit is reached
      */
-    public static function addSubmission(string $maid, string $apartment, string $date, ?string $reservationId, string $submittedBy): int
+    public static function addSubmission(string $maid, string $apartment, string $date, ?string $reservationId, string $submittedBy, int $max = Checklist::MAX_SUBMISSIONS): int
     {
         $next = (self::submissionCounts([$apartment], $date)[$apartment] ?? 0) + 1;
-        if ($next > Checklist::MAX_SUBMISSIONS) {
+        if ($next > $max) {
             throw new RuntimeException('Checklist limit reached', 409);
         }
         try {

@@ -42,6 +42,19 @@ final class MaidPayments
             $checklists[$row['apartment_number'] . '|' . $row['cleaning_date']] = (int) $row['c'];
         }
 
+        // Paid check-outs per apartment + day (all maids): "x2" = more checklists than check-outs,
+        // i.e. a verification pass happened — two check-outs with two checklists is not a double.
+        $stmt = $pdo->prepare(
+            "SELECT apartment_number, cleaning_date, COUNT(*) AS c FROM cleaning_records
+             WHERE cleaning_date BETWEEN ? AND ? AND COALESCE(NULLIF(cleaning_type, ''), 'checkout') = 'checkout'
+             GROUP BY apartment_number, cleaning_date"
+        );
+        $stmt->execute([$from, $to]);
+        $paid = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $paid[trim((string) $row['apartment_number']) . '|' . $row['cleaning_date']] = (int) $row['c'];
+        }
+
         $keys = array_flip(array_map('strval', config('maids', [])));   // "Ioana" => "ioana"
         $maids = [];
         $unknown = [];
@@ -67,7 +80,8 @@ final class MaidPayments
                 'type'      => $type,
                 'rate'      => $rate,
                 'known'     => $known,
-                'double'    => $type === 'checkout' && ($checklists["$apartment|$date"] ?? 0) >= 2,
+                'double'    => $type === 'checkout'
+                    && ($checklists["$apartment|$date"] ?? 0) > max(1, $paid["$apartment|$date"] ?? 1),
             ];
             $maids[$name]['total'] += $rate;
             $maids[$name][$type === 'intermediate' ? 'intermediates' : 'checkouts']++;

@@ -59,9 +59,13 @@
     const mine = (r) => !!SELF && r.assigned.length > 0 && r.assigned.every((m) => m === SELF);
     const pickable = (r) => CAN_EDIT && r.submissions === 0 && (!SELF || r.assigned.length === 0);
 
+    // rounds = check-outs today in this apartment; each one is a cleaning (+ an optional verification pass).
+    const rounds = (r) => Math.max(1, r.rounds || 1);
     function status(r) {
-      if (r.submissions >= 2) return '<span class="badge badge-success">' + icon('check') + 'Finalizat</span>';
-      if (r.submissions === 1) return '<span class="badge badge-success">' + icon('check') + 'Checklist trimis</span>';
+      const n = rounds(r);
+      if (r.submissions >= 2 * n) return '<span class="badge badge-success">' + icon('check') + 'Finalizat</span>';
+      if (r.submissions >= n) return '<span class="badge badge-success">' + icon('check') + 'Checklist trimis' + (n > 1 ? ` (${n}/${n})` : '') + '</span>';
+      if (r.submissions > 0) return `<span class="badge badge-success">${icon('check')}Checklist ${r.submissions}/${n}</span>`;
       if (mine(r)) return '<span class="badge badge-violet">' + icon('check') + 'Al tău</span>';
       if (r.assigned.length) return `<span class="badge badge-violet">${esc(r.assigned.join(', '))}</span>`;
       return '<span class="badge badge-warning">Nealocat</span>';
@@ -100,7 +104,8 @@
       const on = selected.has(r.apartment);
       const canPick = pickable(r);
       const canChecklist = r.assigned.length && (!SELF || mine(r));
-      const sub = r.checkOutTime ? `${icon('door')} Check-out azi · ${esc(r.checkOutTime)}` : `${icon('calendar')} Alocat azi`;
+      const many = rounds(r) > 1 ? ` · <strong>${rounds(r)} check-out-uri</strong>` : '';
+      const sub = r.checkOutTime ? `${icon('door')} Check-out azi · ${esc(r.checkOutTime)}${many}` : `${icon('calendar')} Alocat azi${many}`;
       return `<article class="card hk-card${on ? ' is-selected' : ''}${canPick ? ' is-selectable' : ''}${SELF && r.assigned.length && !mine(r) ? ' is-taken' : ''}" data-apt="${esc(r.apartment)}"
           ${canPick ? 'role="button" tabindex="0" aria-pressed="' + on + '"' : ''}>
         <span class="apt-badge apt-badge-violet"><span>Apt</span><strong>${esc(r.apartment)}</strong></span>

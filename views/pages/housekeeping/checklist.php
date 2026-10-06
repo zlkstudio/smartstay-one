@@ -1,10 +1,13 @@
 <?php
 /**
  * Checklist for one apartment, today. Ported from cleaning_form.php + checklist.js.
- * @var string $apartment @var string $maid @var string $date @var int $count @var bool $locked
+ * @var string $apartment @var string $maid @var string $date @var int $count @var int $rounds @var bool $locked
  * @var bool $canSubmit @var array $sections @var list<string> $photoAreas @var string $csrf
  */
 $readOnly = $locked || !$canSubmit;
+$rounds = max(1, (int) ($rounds ?? 1));
+// Which check-out this pass belongs to: 1..rounds are cleanings, the rest verification passes.
+$isVerification = $count >= $rounds;
 ?>
 <div class="stack" data-checklist data-apartment="<?= h($apartment) ?>" data-csrf="<?= h($csrf) ?>">
   <div class="hero">
@@ -13,13 +16,18 @@ $readOnly = $locked || !$canSubmit;
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
       <span class="badge badge-violet"><?= icon('housekeeping', 'icon icon-sm') ?><?= h($maid) ?></span>
       <span class="badge"><?= icon('calendar', 'icon icon-sm') ?><?= h(date('d.m.Y', strtotime($date))) ?></span>
+      <?php if ($rounds > 1): ?>
+        <span class="badge badge-warning"><?= icon('door', 'icon icon-sm') ?><?= $rounds ?> check-out-uri azi</span>
+      <?php endif; ?>
     </div>
   </div>
 
   <?php if ($locked): ?>
     <div class="alert alert-success"><?= icon('check', 'icon icon-sm') ?><span>Acest checklist a fost finalizat.</span></div>
-  <?php elseif ($count === 1): ?>
+  <?php elseif ($isVerification && $count > 0): ?>
     <div class="alert alert-info"><?= icon('info', 'icon icon-sm') ?><span>Verificare finală (a doua trecere).</span></div>
+  <?php elseif ($rounds > 1): ?>
+    <div class="alert alert-info"><?= icon('info', 'icon icon-sm') ?><span>Curățenia <?= $count + 1 ?> din <?= $rounds ?> de azi — după check-out-ul <?= $count + 1 ?>.</span></div>
   <?php endif; ?>
   <?php if (!$canSubmit && !$locked): ?>
     <div class="alert alert-info"><?= icon('info', 'icon icon-sm') ?><span>Ai acces doar de vizualizare.</span></div>

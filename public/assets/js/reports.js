@@ -50,10 +50,16 @@
         const data = Object.fromEntries(new FormData(form).entries());
         button.disabled = true;
         button.classList.add('is-loading');
-        window.ONE.api('/api/reports/cleaning', { method: 'POST', body: data })
+        const send = (body) => window.ONE.api('/api/reports/cleaning', { method: 'POST', body })
           .then((res) => { toast(res.message); setTimeout(() => location.reload(), 600); })
-          .catch((e) => toast(e.message))
-          .finally(() => { button.disabled = false; button.classList.remove('is-loading'); });
+          .catch((e) => {
+            // Same maid + apartment + day already paid: a second check-out that day is legit — ask, then add again.
+            if (e.code === 'duplicate' && window.confirm(e.message + '\n\nA fost încă un check-out în aceeași zi? Adaugă încă o curățenie.')) {
+              return send(Object.assign({}, body, { again: true }));
+            }
+            toast(e.message);
+          });
+        send(data).finally(() => { button.disabled = false; button.classList.remove('is-loading'); });
       });
     }
   });

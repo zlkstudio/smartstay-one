@@ -10,6 +10,7 @@ namespace One\Housekeeping;
  */
 final class Checklist
 {
+    /** Per check-out: the cleaning + one verification pass. */
     public const MAX_SUBMISSIONS = 2;
     public const PHOTOS = 3;
     public const INTERMEDIATE_RATE = 30; // RON, flat (housekeeping/config/app_config.php)
@@ -105,6 +106,12 @@ final class Checklist
         '347' => ['Cabina de duș', 'Mașina de spălat vase', 'Bancă hol', 'Scurgerea de la duș (interior)'],
         '594' => ['Cabina de duș', 'Sub comoda living', 'Scurgerea de la duș (interior)'],
     ];
+
+    /** Submissions allowed on a day with $rounds check-outs in the apartment (2 per check-out). */
+    public static function maxFor(int $rounds): int
+    {
+        return self::MAX_SUBMISSIONS * max(1, $rounds);
+    }
 
     /** @return array<string, array{0:string, 1:array<string,string>}> sections for this apartment */
     public static function sectionsFor(string $apartment): array

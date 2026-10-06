@@ -79,6 +79,7 @@ final class HousekeepingController
 
         $maid = self::checklistOwner($user, $apartment, $today);
         $count = CleaningRepository::submissionCounts([$apartment], $today)[$apartment];
+        $rounds = self::rounds($apartment, $today);
 
         view('pages/housekeeping/checklist', [
             'user'       => $user,
@@ -89,7 +90,8 @@ final class HousekeepingController
             'maid'       => $maid,
             'date'       => $today,
             'count'      => $count,
-            'locked'     => $count >= Checklist::MAX_SUBMISSIONS,
+            'rounds'     => $rounds,
+            'locked'     => $count >= Checklist::maxFor($rounds),
             'canSubmit'  => Access::can($user, 'housekeeping', 'edit'),
             'sections'   => Checklist::sectionsFor($apartment),
             'photoAreas' => Checklist::photoAreas($apartment),
@@ -123,21 +125,50 @@ final class HousekeepingController
                 }
             }
         }
-        $counts = CleaningRepository::submissionCounts(array_column($rows, 'apartment'), $today);
+        // The list keeps one entry per check-out (same apartment twice = two check-outs today).
         self::rememberCheckouts($today, array_column($rows, 'apartment'));
-        foreach ($rows as &$row) {
-            $row['assigned'] = array_values(array_unique(array_column($assignments[$row['apartment']] ?? [], 'maid')));
-            $row['submissions'] = $counts[$row['apartment']] ?? 0;
+        $counts = CleaningRepository::submissionCounts(array_values(array_unique(array_column($rows, 'apartment'))), $today);
+
+        // One card per apartment; several check-outs on the same day become rounds of cleaning.
+        $cards = [];
+        foreach ($rows as $row) {
+            $apartment = $row['apartment'];
             // Departing guest paid the city tax in cash → money left on the kitchen table, to pick up.
-            $row['cashDue'] = $row['reservationId'] !== '' ? GuestAppCheckins::cashToCollect($row['reservationId']) : null;
-            $row['hasLock'] = Nuki::hasLock($row['apartment']);
+            $cash = $row['reservationId'] !== '' ? GuestAppCheckins::cashToCollect($row['reservationId']) : null;
+            if (!isset($cards[$apartment])) {
+                $cards[$apartment] = $row + ['times' => [], 'guests' => [], 'cashDue' => null, 'checkouts' => 0];
+            }
+            $card = &$cards[$apartment];
+            $card['checkouts']++;
+            if ($row['checkOutTime'] !== '') {
+                $card['times'][] = $row['checkOutTime'];
+            }
+            if (($row['guest'] ?? '') !== '') {
+                $card['guests'][] = $row['guest'];
+            }
+            if ($cash !== null) {
+                $card['cashDue'] = ($card['cashDue'] ?? 0) + $cash;
+            }
+            unset($card);
+        }
+        $out = [];
+        foreach ($cards as $apartment => $card) {
+            $apartment = (string) $apartment;
+            sort($card['times']);
+            $card['checkOutTime'] = implode(', ', array_unique($card['times']));
+            $card['guest'] = implode(' · ', array_unique($card['guests']));
+            $card['rounds'] = max($card['checkouts'], CleaningRepository::checkoutRecordCount($apartment, $today), 1);
+            $card['assigned'] = array_values(array_unique(array_column($assignments[$apartment] ?? [], 'maid')));
+            $card['submissions'] = $counts[$apartment] ?? 0;
+            $card['hasLock'] = Nuki::hasLock($apartment);
+            unset($card['times'], $card['guests']);
             if ($isMaid) {
                 // A maid only needs the apartment and the time — never the guest.
-                unset($row['guest'], $row['reservationId']);
+                unset($card['guest'], $card['reservationId']);
             }
+            $out[] = $card;
         }
-        unset($row);
-        json_response(['ok' => true, 'date' => $today, 'checkouts' => $rows]);
+        json_response(['ok' => true, 'date' => $today, 'checkouts' => $out]);
     }
 
     /**
@@ -242,7 +273,9 @@ final class HousekeepingController
 
     /**
      * POST /api/housekeeping/checklist (multipart) — apartment, sections[], photo1..3, requirements[].
-     * Max 2 submissions per apartment + day; only the first is billed; e-mail with photos.
+     * Max 2 submissions per check-out (apartment + day × check-outs that day). Each check-out is billed once:
+     * a submission is paid while the apartment has fewer paid check-out cleanings than check-outs today;
+     * the rest are verification passes. E-mail with photos.
      */
     public static function submitChecklist(): never
     {
@@ -294,8 +327,10 @@ final class HousekeepingController
             }
         }
 
+        $rounds = self::rounds($apartment, $today);
         try {
-            $number = CleaningRepository::addSubmission($maid, $apartment, $today, null, self::isMaid($user) ? $maid : $user['name']);
+            $number = CleaningRepository::addSubmission($maid, $apartment, $today, null,
+                self::isMaid($user) ? $maid : $user['name'], Checklist::maxFor($rounds));
         } catch (RuntimeException $e) {
             if ($e->getCode() === 409) {
                 json_response(['ok' => false, 'code' => 'limit_reached',
@@ -304,15 +339,16 @@ final class HousekeepingController
             throw $e;
         }
 
-        // Only the first pass is paid; the second is a verification pass.
-        if ($number === 1) {
-            CleaningRepository::recordCleaning($maid, $apartment, $today, 'checkout');
+        // One paid cleaning per check-out today; everything beyond that is a verification pass.
+        $billed = CleaningRepository::checkoutRecordCount($apartment, $today) < $rounds;
+        if ($billed) {
+            CleaningRepository::recordCleaning($maid, $apartment, $today, 'checkout', null, true);
             CleaningRepository::markAssignmentCompleted($maid, $apartment, $today);
         }
 
         $mailed = ChecklistMailer::send($apartment, $maid, $today, $number, $report, $photos, $user['name']);
         Audit::log((int) $user['id'], 'housekeeping.checklist', 'apartment', $apartment, [
-            'maid' => $maid, 'submission' => $number, 'mailed' => $mailed,
+            'maid' => $maid, 'submission' => $number, 'rounds' => $rounds, 'billed' => $billed, 'mailed' => $mailed,
         ]);
 
         json_response([
@@ -370,6 +406,17 @@ final class HousekeepingController
                 json_response(['ok' => false, 'error' => "Apartamentul $apartment e deja alocat către " . implode(', ', $others) . '.'], 409);
             }
         }
+    }
+
+    /**
+     * How many check-outs the apartment has on $date (each one = a cleaning to do and to pay).
+     * From today's Previo list (one entry per check-out); a manual payment line added in Rapoarte
+     * also counts, so an admin can open one more round when Previo doesn't show the second departure.
+     */
+    private static function rounds(string $apartment, string $date): int
+    {
+        $previo = count(array_keys(self::rememberedCheckouts($date), $apartment, true));
+        return max(1, $previo, CleaningRepository::checkoutRecordCount($apartment, $date));
     }
 
     /** Today's check-out apartments (numbers only), kept so /door-log can be scoped without asking Previo again. */

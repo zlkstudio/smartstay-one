@@ -116,7 +116,12 @@
       return response.text().then(function (text) {
         var data;
         try { data = JSON.parse(text); } catch (e) { throw new Error('Eroare ' + response.status); }
-        if (!response.ok || data.ok === false) throw new Error(data.error || 'Eroare ' + response.status);
+        if (!response.ok || data.ok === false) {
+          var err = new Error(data.error || 'Eroare ' + response.status);
+          err.status = response.status;
+          err.code = data.code || null;
+          throw err;
+        }
         if (ttl) apiCache.set(path, { text: text, t: Date.now() });
         return text;
       });
