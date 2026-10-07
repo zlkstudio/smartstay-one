@@ -251,6 +251,24 @@ Nu e nevoie de config nou. Opțional în `config/app.php`: `'apartments' => ['5'
 Verificare: `tail -3 ~/one.smartstay.ro/storage/logs/cron.log` și Setări → Rapoarte („Cronul orar rulează normal").
 Fără cron rapoartele merg oricum (se calculează la deschidere, max. o dată pe oră), doar mai lent.
 
+### 6.6 Cronometru curățenie + ștergere cod oaspete (1.6.0)
+
+- **Start:** menajera descuie cu codul ei („Ioana Menaj”, „Cristina Menaj”; implicit `<Nume> Menaj`, override în
+  `config/nuki.php` → `maid_names`) un apartament cu check-out azi → bară pe cardul din Curățenie („Ioana · în lucru”
+  → „Ioana · gata”). Pe card NU apar ținta, minutele, nopțile sau orele.
+- **Țintă** după nopțile rezervării care pleacă: 1 noapte 30/35 · 2–3 nopți 35/40 · 4–5 nopți 40/45 · 6+ nopți 50/60
+  min (studio/apartament; studio = `Rates::STUDIOS`). Modificare: `CleaningTracker::TARGETS`.
+- **Stop:** prima încuiere la ≥ 3 min, făcută de menajeră sau fără nume (buton, auto-lock). O încuiere a altcuiva
+  (Romeo din aplicație) NU oprește cronometrul. → push la admin + manager cu durata și Jurnal.
+- **Cod oaspete:** la start se șterge de pe yală codul oaspetelui plecat (potrivire pe cod din telefon sau pe nume).
+  Niciodată: Romeo, Ioana Menaj, Cristina Menaj, Entry Code (în cod, `Nuki::PROTECTED_NAMES`) + `protected_names`
+  din config; niciodată codurile check-in-urilor de azi/mâine sau ale altui check-out de azi. Log: `storage/logs/nuki.log`.
+- **O sesiune per check-out:** reintrarea după final (a uitat ceva) nu pornește alt cronometru.
+- **Raport:** Setări (desktop, doar admin) → Timpi curățenie, `/settings/cleaning-times` (implicit ultimele 14 zile): medie, median, % peste țintă, „Propus” = median
+  rotunjit la 5 min (de la 5 curățenii în grupă).
+- **Cron la minut** (rulează 07–22): `* * * * * /usr/local/bin/php /home/smartconcept/one.smartstay.ro/bin/cleaning-cron.php >> /home/smartconcept/one.smartstay.ro/storage/logs/cleaning.log 2>&1`.
+  Fără cron merge doar cât e deschisă pagina Curățenie. Verificare: `php bin/doctor.php` → „Cronometru curățenie”.
+
 ---
 
 ## 7. Deploy — rutina

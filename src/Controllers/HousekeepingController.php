@@ -9,6 +9,7 @@ use One\Auth\Auth;
 use One\Housekeeping\Checklist;
 use One\Housekeeping\ChecklistMailer;
 use One\Housekeeping\CleaningRepository;
+use One\Housekeeping\CleaningTracker;
 use One\Housekeeping\HousekeepingFeed;
 use One\Http\Guard;
 use One\Integrations\GuestAppCheckins;
@@ -205,6 +206,25 @@ final class HousekeepingController
             unset($events);
         }
         json_response(['ok' => true, 'logs' => (object) $logs, 'errors' => (object) $errors]);
+    }
+
+    /**
+     * GET /api/housekeeping/sessions — today's timed cleanings (from Nuki) for the progress bars.
+     * Also nudges the tracker (max. once a minute), so the bars move even without the cron.
+     * No guest data in here: safe for maids.
+     */
+    public static function sessions(): never
+    {
+        Guard::requireAccess('housekeeping', 'view');
+        CleaningTracker::sync();
+        try {
+            $sessions = CleaningTracker::today();
+        } catch (\Throwable $e) {
+            error_log('[ONE] cleaning sessions: ' . $e->getMessage());
+            json_response(['ok' => false, 'error' => 'Cronometrul curățeniilor nu e disponibil (rulează php bin/migrate.php).'], 503);
+        }
+        header('Cache-Control: no-store');
+        json_response(['ok' => true, 'now' => date(DATE_ATOM), 'sessions' => $sessions]);
     }
 
     /** POST /api/housekeeping/assign {maid: key, apartments: [..]} */

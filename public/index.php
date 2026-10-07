@@ -95,6 +95,7 @@ $router->get('/housekeeping/intermediate', static fn() => HousekeepingController
 $router->get('/housekeeping/checklist/{apartment}', static fn(array $p) => HousekeepingController::checklist($p));
 $router->get('/api/housekeeping/checkouts', static fn() => HousekeepingController::checkouts());
 $router->get('/api/housekeeping/door-log', static fn() => HousekeepingController::doorLog());
+$router->get('/api/housekeeping/sessions', static fn() => HousekeepingController::sessions());
 $router->post('/api/housekeeping/assign', static fn() => HousekeepingController::assign());
 $router->get('/api/housekeeping/active-guests', static fn() => HousekeepingController::activeGuests());
 $router->post('/api/housekeeping/intermediate', static fn() => HousekeepingController::createIntermediate());
@@ -111,6 +112,7 @@ $router->post('/api/inventory/tech', static fn() => InventoryController::tech())
 // ── Rapoarte (Etapa 3) ─────────────────────────────────────────────────────
 $router->get('/reports', static fn() => ReportsController::overview());
 $router->get('/reports/payments', static fn() => ReportsController::payments());
+$router->get('/settings/cleaning-times', static fn() => ReportsController::cleaningTimes());
 $router->get('/reports/body', static fn() => ReportsController::overviewBody());
 $router->get('/api/reports/today', static fn() => ReportsController::today());
 $router->post('/api/reports/refresh', static fn() => ReportsController::refresh());

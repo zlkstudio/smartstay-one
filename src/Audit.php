@@ -23,6 +23,8 @@ final class Audit
         'housekeeping.assign'     => 'A alocat curățenii',
         'housekeeping.intermediate' => 'A înregistrat o curățenie intermediară',
         'housekeeping.checklist'  => 'A trimis checklist-ul',
+        'housekeeping.cleaning_start' => 'Curățenie începută (Nuki)',
+        'housekeeping.cleaning_done'  => 'Curățenie terminată (Nuki)',
         // Etapa 3
         'inventory.adjust'        => 'A modificat stocul',
         'inventory.note'          => 'A modificat „Necesar"',

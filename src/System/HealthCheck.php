@@ -13,7 +13,7 @@ use Throwable;
 final class HealthCheck
 {
     public const EXPECTED_TABLES = [
-        'one'          => ['users', 'permissions', 'sessions', 'login_attempts', 'audit_log', 'report_cache', 'whatsapp_outreach'],
+        'one'          => ['users', 'permissions', 'sessions', 'login_attempts', 'audit_log', 'report_cache', 'whatsapp_outreach', 'cleaning_sessions'],
         'cleaning'     => ['cleaning_records', 'maid_assignments', 'checklist_submissions'],
         'inventory'    => ['inventar_apartamente'],
         'reservations' => ['reservation_status', 'reservation_status_log'],

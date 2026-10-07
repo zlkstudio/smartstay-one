@@ -143,6 +143,25 @@ article.hk-card { padding: 14px; transition: border-color 0.15s, box-shadow 0.15
 .hk-door.is-loading { opacity: 0.5; }
 .hk-inter { display: flex; flex-direction: column; gap: 12px; }
 
+/* Cronometru curățenie (Nuki): bara crește spre 95% cât e menajera înăuntru, verde la încuiere. */
+.hk-run { display: block; margin-top: 8px; }
+.hk-run-head .icon { width: 14px; height: 14px; vertical-align: -2px; }
+.hk-run-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--violet); }
+.hk-run-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hk-run-track { position: relative; display: block; height: 8px; margin-top: 5px; border-radius: 99px; background: var(--violet-soft); overflow: hidden; }
+.hk-run-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: var(--violet);
+  transition: width 0.8s ease, background-color 0.3s; }
+.hk-run.is-live .hk-run-fill::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent); animation: hk-run-shine 1.6s linear infinite; }
+.hk-run.is-done .hk-run-head { color: var(--success); }
+.hk-run.is-done .hk-run-track { background: var(--success-soft); }
+.hk-run.is-done .hk-run-fill { background: var(--success); }
+@keyframes hk-run-shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .hk-run-fill { transition: none; } .hk-run.is-live .hk-run-fill::after { animation: none; } }
+
+.ct-time { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; font-size: 14px; }
+.ct-time .badge { height: 20px; padding: 0 7px; font-size: 11px; }
+
 .assign-bar {
   position: sticky; bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px); z-index: 20;
   display: flex; flex-direction: column; gap: 10px; padding: 12px; margin: 4px -4px 0;

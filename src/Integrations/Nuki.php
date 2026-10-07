@@ -244,6 +244,169 @@ final class Nuki
         return $out;
     }
 
+    // ── Cleaning tracker: raw log, keypad codes, deleting the departed guest's code ──
+
+    /** Unlock-type actions (the maid coming in) and lock-type actions (the maid leaving). */
+    public const UNLOCK_ACTIONS = [1, 3, 5];
+    public const LOCK_ACTIONS = [2, 4];
+
+    /**
+     * Codes that are NEVER deleted, whatever matches: staff and the building entry.
+     * config/nuki.php 'protected_names' adds more; it can never remove these.
+     */
+    private const PROTECTED_NAMES = ['Romeo', 'Ioana Menaj', 'Cristina Menaj', 'Entry Code'];
+
+    /**
+     * Today's raw lock events per apartment, oldest first, no cache (the tracker needs the exact
+     * times). One parallel round to Nuki. Failed locks land in $errors.
+     * @param list<string> $apartments
+     * @return array<string, list<array{action:int, name:string, via:string, at:string, ok:bool}>>
+     */
+    public static function logEntries(array $apartments, string $date, int $limit = 50, ?array &$errors = null): array
+    {
+        $errors = [];
+        $locks = self::smartlocks();
+        $paths = [];
+        foreach ($apartments as $apartment) {
+            $apartment = self::cleanApartment((string) $apartment);
+            $lockId = $locks[$apartment] ?? '';
+            if (preg_match('/^\d{5,20}$/', $lockId)) {
+                $paths[$apartment] = "/smartlock/$lockId/log?limit=$limit";
+            }
+        }
+        if (!$paths) {
+            return [];
+        }
+        $tz = new \DateTimeZone(date_default_timezone_get());
+        $out = [];
+        foreach (self::requestMany($paths, 10) as $apartment => $res) {
+            if ($res['error'] !== '' || $res['status'] !== 200) {
+                $errors[$apartment] = $res['error'] !== '' ? 'fără răspuns' : 'HTTP ' . $res['status'];
+                continue;
+            }
+            $events = [];
+            foreach (array_filter((array) json_decode($res['body'], true), 'is_array') as $entry) {
+                if (empty($entry['date'])) {
+                    continue;
+                }
+                try {
+                    $at = (new \DateTimeImmutable((string) $entry['date']))->setTimezone($tz);
+                } catch (\Exception) {
+                    continue;
+                }
+                if ($at->format('Y-m-d') !== $date) {
+                    continue;
+                }
+                [$name, $via] = self::logActor((string) ($entry['name'] ?? ''), (int) ($entry['trigger'] ?? -1));
+                $events[] = [
+                    'action' => (int) ($entry['action'] ?? 0),
+                    'name'   => $name,
+                    'via'    => $via,
+                    'at'     => $at->format('Y-m-d H:i:s'),
+                    'ok'     => (int) ($entry['state'] ?? 0) === 0,
+                ];
+            }
+            usort($events, static fn(array $a, array $b): int => strcmp($a['at'], $b['at']));
+            $out[(string) $apartment] = $events;
+        }
+        return $out;
+    }
+
+    /** "Ioana  Menaj (Keypad)" → "ioana menaj" — lowercase ASCII, single spaces. */
+    public static function normalizeName(string $name): string
+    {
+        $name = (string) preg_replace('/\s*\((keypad|tastatur[aă])\)\s*$/iu', '', trim($name));
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        $name = strtolower($ascii !== false ? $ascii : $name);
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $name));
+    }
+
+    /** True when the code belongs to staff / the entry door — contains a protected name as whole words. */
+    public static function isProtected(string $name): bool
+    {
+        $norm = self::normalizeName($name);
+        if ($norm === '') {
+            return false;
+        }
+        $extra = self::isConfigured() ? (array) (self::config()['protected_names'] ?? []) : [];
+        foreach ([...self::PROTECTED_NAMES, ...$extra] as $protected) {
+            $p = self::normalizeName((string) $protected);
+            if ($p !== '' && preg_match('/(^| )' . preg_quote($p, '/') . '( |$)/', $norm)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Deletes the departed guest's keypad code(s) from the apartment's lock.
+     * A code is deleted only when ALL hold: keypad type · not protected (Romeo, Ioana Menaj, Cristina Menaj,
+     * Entry Code, config 'protected_names') · its code equals the guest's code OR its name equals the guest's
+     * name · it is not the code / name of a guest still to come ($keepCodes / $keepNames).
+     * @param list<string> $keepCodes @param list<string> $keepNames
+     * @return array{status:string, note:string} status: deleted | not_found | failed | skipped
+     */
+    public static function removeGuestCode(string $apartment, string $guestName, ?string $guestCode, array $keepCodes, array $keepNames): array
+    {
+        $apartment = self::cleanApartment($apartment);
+        $lockId = self::smartlocks()[$apartment] ?? '';
+        if (!preg_match('/^\d{5,20}$/', $lockId)) {
+            return ['status' => 'skipped', 'note' => 'fără yală Nuki'];
+        }
+        $guestNorm = self::normalizeName(mb_substr($guestName, 0, 32));
+        if ($guestNorm === '' && $guestCode === null) {
+            return ['status' => 'skipped', 'note' => 'oaspete fără nume și telefon'];
+        }
+        if (self::isProtected($guestName)) {
+            return ['status' => 'skipped', 'note' => 'numele oaspetelui e protejat'];
+        }
+        $keepNames = array_map(static fn(string $n): string => self::normalizeName(mb_substr($n, 0, 32)), $keepNames);
+
+        $res = self::request('GET', "/smartlock/$lockId/auth", null, 12);
+        if ($res['error'] !== '' || $res['status'] !== 200) {
+            self::log("cleanup apt=$apartment list http={$res['status']} " . ($res['error'] ?: 'FAIL'));
+            return ['status' => 'failed', 'note' => 'lista de coduri nu s-a putut citi'];
+        }
+
+        $deleted = [];
+        $failed = 0;
+        foreach (array_filter((array) json_decode($res['body'], true), 'is_array') as $auth) {
+            if ((int) ($auth['type'] ?? -1) !== 13 || empty($auth['id'])) {
+                continue;
+            }
+            $name = (string) ($auth['name'] ?? '');
+            $code = isset($auth['code']) ? str_pad((string) (int) $auth['code'], 6, '0', STR_PAD_LEFT) : null;
+            if (self::isProtected($name)) {
+                continue;
+            }
+            $byCode = $guestCode !== null && $code !== null && $code === $guestCode;
+            // "Guest 99" is the default name for any guest without one: only the code may match it.
+            $byName = $guestNorm !== '' && !preg_match('/^guest \d+$/', $guestNorm) && self::normalizeName($name) === $guestNorm;
+            if (!$byCode && !$byName) {
+                continue;
+            }
+            if (($code !== null && in_array($code, $keepCodes, true)) || in_array(self::normalizeName($name), $keepNames, true)) {
+                continue;   // the same code / name belongs to a guest who is still coming
+            }
+            $authId = preg_replace('/[^A-Za-z0-9]/', '', (string) $auth['id']);
+            $del = self::request('DELETE', "/smartlock/$lockId/auth/$authId", null, 12);
+            $ok = $del['error'] === '' && in_array($del['status'], [200, 204], true);
+            self::log(sprintf('cleanup apt=%s auth=%s name="%s" http=%d %s', $apartment, $authId, $name, $del['status'], $ok ? 'DELETED' : 'FAIL'));
+            if ($ok) {
+                $deleted[] = $name;
+            } else {
+                $failed++;
+            }
+        }
+
+        if ($failed) {
+            return ['status' => 'failed', 'note' => $deleted ? 'șters parțial: ' . implode(', ', $deleted) : 'Nuki a refuzat ștergerea'];
+        }
+        return $deleted
+            ? ['status' => 'deleted', 'note' => implode(', ', $deleted)]
+            : ['status' => 'not_found', 'note' => 'niciun cod al oaspetelui pe yală'];
+    }
+
     /** Above this many keypad codes the lock is flagged (Nuki Keypad holds at most 100 / 200 codes). */
     private const KEYPAD_CODE_WARN = 90;
 

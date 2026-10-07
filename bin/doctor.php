@@ -61,6 +61,18 @@ if ($report['reports'] === null) {
         $report['reports']['stale'] ? ' — cronul pare oprit' : '');
 }
 
+echo "\nCronometru curățenie (cron la minut bin/cleaning-cron.php)\n";
+$stamp = ONE_ROOT . '/storage/cache/cleaning-sync.stamp';
+if (!is_file($stamp)) {
+    echo "  ⚠️  nicio sincronizare Nuki încă — rulează: php bin/cleaning-cron.php --force\n";
+} else {
+    $age = time() - (int) filemtime($stamp);
+    $hour = (int) date('G');
+    $stale = $age > 300 && $hour >= 7 && $hour <= 22;
+    printf("  %s ultima sincronizare: acum %d min%s\n", $stale ? '⚠️ ' : '✅', intdiv($age, 60),
+        $stale ? ' — cronul pare oprit (merge doar cât e deschisă pagina Curățenie)' : '');
+}
+
 echo "\nServer\n";
 foreach ($report['environment'] as $env) {
     // CLI has no HTTPS; only flag it for web requests.

@@ -49,6 +49,8 @@
     let rows = [];
     let doors = {}; // apartment → last 2 Nuki events
     let doorErrors = {}; // apartment → why Nuki could not be read
+    let runs = {}; // apartment → today's timed cleanings (Nuki: maid's code unlocks → lock)
+    let clockSkew = 0; // server now − device now, so the bars don't depend on the phone's clock
 
     function syncBar() {
       if (!$bar) return;
@@ -100,6 +102,55 @@
       ).join('') + '</span>';
     }
 
+    // ── Cronometru: „Ioana Menaj” descuie → bara pornește; încuie → timpul final ──
+    const minutesSince = (iso, until) => Math.max(0, ((until ? new Date(until).getTime() : Date.now() + clockSkew) - new Date(iso).getTime()) / 60000);
+    // The card shows only who is cleaning and that it's done — never a target or a time.
+    // 'pace' only sets how fast the bar fills; it stops at 95% until the door is locked.
+    function runBar(s) {
+      const done = !!s.endedAt;
+      const pct = done ? 100 : Math.min(95, (minutesSince(s.startedAt) / Math.max(1, s.pace)) * 100);
+      const head = done ? `${icon('check')} ${esc(s.maid)} · gata` : `${esc(s.maid)} · în lucru`;
+      return `<span class="hk-run${done ? ' is-done' : ' is-live'}" data-run="${esc(s.startedAt)}">
+        <span class="hk-run-head"><span>${head}</span></span>
+        <span class="hk-run-track" aria-hidden="true"><span class="hk-run-fill" style="width:${pct.toFixed(1)}%"></span></span>
+      </span>`;
+    }
+    // Once a check-out's checklist is sent, "Checklist trimis" says it all: that round's bar goes away.
+    // With 2 check-outs today, the 2nd bar stays until the 2nd checklist.
+    function runBars(r) {
+      const sent = Math.min(r.submissions || 0, rounds(r));
+      return (runs[r.apartment] || []).slice(sent).map(runBar).join('');
+    }
+
+    // Only the bars change between polls/ticks — the rest of the card stays as it is.
+    function paintRuns() {
+      rows.forEach((r) => {
+        const el = $list.querySelector(`.hk-card[data-apt="${CSS.escape(r.apartment)}"] [data-runs]`);
+        if (el) el.innerHTML = runBars(r);
+      });
+    }
+
+    function loadRuns() {
+      return window.ONE.api('/api/housekeeping/sessions', { timeout: 30000 })
+        .then((data) => {
+          if (data.now) clockSkew = new Date(data.now).getTime() - Date.now();
+          runs = {};
+          (data.sessions || []).forEach((s) => { (runs[s.apartment] = runs[s.apartment] || []).push(s); });
+          paintRuns();
+        })
+        .catch(() => {});   // no timer is better than an error banner on the maids' list
+    }
+
+    // Poll every 30 s while the list is on screen (the server syncs with Nuki at most once a minute);
+    // the live bars advance locally every 15 s. Stops by itself when the page is replaced.
+    let tick = 0;
+    const timer = setInterval(() => {
+      if (!root.isConnected) { clearInterval(timer); return; }
+      if (document.visibilityState !== 'visible') return;
+      tick++;
+      if (tick % 2 === 0) loadRuns(); else paintRuns();
+    }, 15000);
+
     function card(r) {
       const on = selected.has(r.apartment);
       const canPick = pickable(r);
@@ -114,6 +165,7 @@
           <span class="list-sub">${sub}</span>
           <span class="hk-status">${status(r)}</span>
           ${cashNotice(r)}
+          <span data-runs>${runBars(r)}</span>
           ${doorLog(r)}
         </span>
         <span class="hk-side">
@@ -141,6 +193,7 @@
           // Drop selections that are no longer pickable.
           [...selected].forEach((a) => { if (!rows.some((r) => r.apartment === a && pickable(r))) selected.delete(a); });
           render();
+          loadRuns();
           loadDoors();
         })
         .catch((e) => { $list.innerHTML = ''; showError('Nu s-au putut încărca apartamentele: ' + e.message); });

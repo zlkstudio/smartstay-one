@@ -47,6 +47,19 @@ final class Activity
                 }
                 return ['title' => "Checklist · Apt $apt", 'body' => $body . '.', 'url' => '/reports/payments'];
 
+            case 'housekeeping.cleaning_done':
+                return \One\Housekeeping\CleaningTracker::message($apt, $meta) + ['url' => '/settings/cleaning-times'];
+
+            case 'housekeeping.cleaning_start':
+                $code = match ($meta['code'] ?? '') {
+                    'deleted'   => 'codul oaspetelui a fost șters (' . ($meta['codeNote'] ?? '') . ')',
+                    'not_found' => 'codul oaspetelui nu era pe yală',
+                    'failed'    => 'codul oaspetelui NU s-a putut șterge — ' . ($meta['codeNote'] ?? ''),
+                    default     => 'cod neatins (' . ($meta['codeNote'] ?? '') . ')',
+                };
+                return ['title' => "Curățenie începută · Apt $apt", 'url' => '/housekeeping',
+                    'body' => sprintf('%s a intrat la %s · țintă %d min · %s.', $meta['maid'] ?? '', $meta['at'] ?? '', (int) ($meta['target'] ?? 0), $code)];
+
             case 'inventory.adjust':
                 $delta = (int) ($meta['delta'] ?? 0);
                 $red = self::linenTurnedRed('inventory.adjust', $apt, $meta) !== null ? ' — pe roșu' : '';

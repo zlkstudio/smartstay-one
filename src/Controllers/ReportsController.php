@@ -9,6 +9,7 @@ use One\Auth\Access;
 use One\Housekeeping\CleaningRepository;
 use One\Http\Guard;
 use One\Inventory\InventoryRepository;
+use One\Reports\CleaningTimes;
 use One\Reports\MaidPayments;
 use One\Properties;
 use One\Reports\Analytics;
@@ -36,6 +37,9 @@ final class ReportsController
         'prev_month' => 'Luna trecută',
         'this_month' => 'Luna asta',
     ];
+
+    /** Setări → Timpi curățenie: same periods + the default 14-day window the targets are reviewed on. */
+    public const TIMES_PRESETS = ['last_14' => 'Ultimele 14 zile'] + self::PRESETS;
 
     private const MAX_RANGE_DAYS = 93;
 
@@ -271,6 +275,37 @@ final class ReportsController
         json_response($out);
     }
 
+    /**
+     * GET /settings/cleaning-times — real cleaning times (Nuki) vs targets, by length of stay.
+     * Admin only (Setări, linked on desktop): targets are never shown to the maids. Default: last 14 days.
+     */
+    public static function cleaningTimes(): never
+    {
+        $user = Guard::requireAccess('settings', 'edit');
+        [$from, $to, $preset] = self::period('last_14', self::TIMES_PRESETS);
+        $data = null;
+        $error = null;
+        try {
+            $data = CleaningTimes::build($from, $to);
+        } catch (Throwable $e) {
+            error_log('[ONE] cleaning times: ' . $e->getMessage());
+            $error = 'Datele nu s-au putut citi. Dacă e prima rulare: php bin/migrate.php pe server.';
+        }
+        view('pages/reports/cleaning-times', [
+            'user'      => $user,
+            'pageTitle' => 'Setări · Timpi curățenie',
+            'active'    => 'settings',
+            'backHref'  => '/settings',
+            'from'      => $from,
+            'to'        => $to,
+            'preset'    => $preset,
+            'data'      => $data,
+            'error'     => $error,
+            'styles'    => ['assets/css/modules.css'],
+            'scripts'   => ['assets/js/reports.js'],
+        ]);
+    }
+
     /** POST /api/reports/refresh — recompute now (fresh Previo read). */
     public static function refresh(): never
     {
@@ -351,7 +386,7 @@ final class ReportsController
      * Report period from ?preset= or ?from=&to=. Default: last week, Monday–Sunday.
      * @return array{0:string, 1:string, 2:?string} [from, to, preset|null]
      */
-    private static function period(): array
+    private static function period(string $default = 'prev_week', array $presets = self::PRESETS): array
     {
         $from = self::date((string) ($_GET['from'] ?? ''));
         $to = self::date((string) ($_GET['to'] ?? ''));
@@ -363,14 +398,15 @@ final class ReportsController
             return [$from, min($to, $max), null];
         }
 
-        $preset = (string) ($_GET['preset'] ?? 'prev_week');
-        $preset = isset(self::PRESETS[$preset]) ? $preset : 'prev_week';
+        $preset = (string) ($_GET['preset'] ?? $default);
+        $preset = isset($presets[$preset]) ? $preset : $default;
         $monday = new DateTimeImmutable('monday this week');
         $firstOfMonth = new DateTimeImmutable('first day of this month');
         [$a, $b] = match ($preset) {
             'this_week'  => [$monday, $monday->modify('+6 days')],
             'prev_month' => [$firstOfMonth->modify('-1 month'), $firstOfMonth->modify('-1 day')],
             'this_month' => [$firstOfMonth, $firstOfMonth->modify('last day of this month')],
+            'last_14'    => [new DateTimeImmutable('-13 days'), new DateTimeImmutable('today')],
             default      => [$monday->modify('-7 days'), $monday->modify('-1 day')],
         };
         return [$a->format('Y-m-d'), $b->format('Y-m-d'), $preset];

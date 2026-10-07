@@ -111,6 +111,16 @@ $statusBadge = ['ok' => 'badge-success', 'warn' => 'badge-warning', 'error' => '
     </div>
   <?php endif; ?>
 
+  <h2 class="section-title">Curățenie</h2>
+  <div class="list"><a class="list-item" href="/settings/cleaning-times">
+    <span class="tile-icon" data-module="housekeeping"><?= icon('housekeeping') ?></span>
+    <span class="grow">
+      <span class="list-title">Timpi curățenie</span><br>
+      <span class="list-sub">Cât durează curățeniile (din Nuki) față de țintă, pe nopți de ședere · ultimele 14 zile</span>
+    </span>
+    <?= icon('chevron', 'icon icon-sm chev') ?>
+  </a></div>
+
   <h2 class="section-title">Server</h2>
   <div class="card">
     <dl class="kv">
